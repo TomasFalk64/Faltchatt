@@ -4,6 +4,8 @@ create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   alias text not null check (char_length(alias) between 1 and 80),
   symbol text not null default 'circle' check (symbol in ('circle', 'triangle', 'square', 'star', 'tree', 'binoculars')),
+  symbol_color text not null default '#17324d' check (symbol_color ~ '^#[0-9A-Fa-f]{6}$'),
+  show_alias boolean not null default true,
   email text,
   phone text,
   created_at timestamptz not null default now(),
@@ -109,7 +111,7 @@ create or replace function public.random_join_code()
 returns text
 language sql
 as $$
-  select upper(substr(encode(gen_random_bytes(8), 'hex'), 1, 8));
+  select upper(substr(md5(random()::text || clock_timestamp()::text), 1, 8));
 $$;
 
 create or replace function public.create_group_with_owner(group_name text)

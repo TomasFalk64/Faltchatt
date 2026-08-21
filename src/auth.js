@@ -1,6 +1,7 @@
 import { requireSupabase, supabase } from './supabase.js';
 import { appState, SYMBOLS } from './state.js';
-import { el, icon, renderIcons, setSessionPill, showToast } from './ui.js';
+import { startSharing, stopSharing } from './map.js';
+import { el, friendlyError, icon, renderIcons, setSessionPill, showToast } from './ui.js';
 
 let onAuthChanged = async () => {};
 
@@ -44,7 +45,7 @@ export async function ensureProfile() {
   const alias = user.email?.split('@')[0] || 'Fältanvändare';
   const { data: created, error: createError } = await client
     .from('profiles')
-    .insert({ id: user.id, alias, symbol: 'circle', email: user.email })
+    .insert({ id: user.id, alias, symbol: 'circle', symbol_color: '#17324d', show_alias: true, email: user.email })
     .select('*')
     .single();
   if (createError) throw createError;
@@ -128,7 +129,12 @@ export function renderProfile() {
   const alias = el('input', { value: appState.profile?.alias || '', placeholder: 'Alias' });
   const phone = el('input', { value: appState.profile?.phone || '', placeholder: 'Mobilnummer', type: 'tel' });
   const symbol = el('select', {}, SYMBOLS.map((item) => el('option', { value: item.id, text: `${item.glyph} ${item.label}` })));
+  const symbolColor = el('input', { type: 'color', value: appState.profile?.symbol_color || '#17324d' });
+  const showAlias = el('input', { type: 'checkbox' });
+  const shareToggle = el('input', { type: 'checkbox', id: 'profile-share-location' });
   symbol.value = appState.profile?.symbol || 'circle';
+  showAlias.checked = appState.profile?.show_alias !== false;
+  shareToggle.addEventListener('change', () => (shareToggle.checked ? startSharing() : stopSharing()));
 
   const save = async (event) => {
     event.preventDefault();
@@ -140,6 +146,8 @@ export function renderProfile() {
           alias: alias.value.trim() || 'Fältanvändare',
           phone: phone.value.trim() || null,
           symbol: symbol.value,
+          symbol_color: symbolColor.value,
+          show_alias: showAlias.checked,
           email: appState.user.email,
           updated_at: new Date().toISOString(),
         })
@@ -151,27 +159,33 @@ export function renderProfile() {
       showToast('Profilen sparades.', 'success');
     } catch (error) {
       console.error(error);
-      showToast('Kunde inte spara profilen.', 'error');
+      showToast(friendlyError(error, 'Kunde inte spara profilen.'), 'error');
     }
   };
 
-  const previewGlyph = el('span', { text: SYMBOLS.find((item) => item.id === symbol.value)?.glyph || '●' });
+  const previewGlyph = el('span', { text: SYMBOLS.find((item) => item.id === symbol.value)?.glyph || '●', style: `background: ${symbolColor.value}` });
+  const updatePreview = () => {
+    previewGlyph.textContent = SYMBOLS.find((item) => item.id === symbol.value)?.glyph || '●';
+    previewGlyph.style.background = symbolColor.value;
+  };
   view.append(
     el('div', { className: 'page narrow' }, [
       el('h2', { text: 'Profil' }),
       el('form', { className: 'panel stack', onSubmit: save }, [
         el('label', {}, ['Alias', alias]),
         el('label', {}, ['Symbol', symbol]),
+        el('label', {}, ['Symbolfärg', symbolColor]),
         el('div', { className: 'symbol-preview' }, [previewGlyph, 'Visas på kartan']),
         el('label', {}, ['E-post', el('input', { value: appState.user.email || '', disabled: true })]),
         el('label', {}, ['Mobilnummer', phone]),
+        el('label', { className: 'toggle-row' }, [showAlias, el('span', { text: 'Visa alias i chatt och kart-popup' })]),
+        el('label', { className: 'toggle-row' }, [shareToggle, el('span', { text: 'Visa och dela min position' })]),
         el('button', { className: 'primary', type: 'submit' }, [icon('save', 'Spara'), 'Spara profil']),
         el('button', { className: 'ghost', type: 'button', onClick: () => requireSupabase().auth.signOut() }, [icon('log-out', 'Logga ut'), 'Logga ut']),
       ]),
     ]),
   );
-  symbol.addEventListener('change', () => {
-    previewGlyph.textContent = SYMBOLS.find((item) => item.id === symbol.value)?.glyph || '●';
-  });
+  symbol.addEventListener('change', updatePreview);
+  symbolColor.addEventListener('input', updatePreview);
   renderIcons();
 }

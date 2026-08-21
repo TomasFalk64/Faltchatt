@@ -3,7 +3,7 @@ import { isSupabaseConfigured } from './supabase.js';
 import { initAuth, renderAuth, renderProfile, setAuthChangeHandler } from './auth.js';
 import { loadGroups, loadMembers, renderGroups } from './groups.js';
 import { loadChatData, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
-import { loadLocations, refreshMapLayers, renderMapView, subscribeLocations, unsubscribeLocations } from './map.js';
+import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, subscribeLocations, unsubscribeLocations } from './map.js';
 import { appState, setActiveGroupId } from './state.js';
 import { renderAppShell, renderIcons, setSessionPill, setView, showToast } from './ui.js';
 
@@ -12,7 +12,7 @@ async function bootstrap() {
   if (!isSupabaseConfigured) {
     document.querySelector('#auth-view').hidden = false;
     document.querySelector('#auth-view').innerHTML = '<div class="auth-panel"><h1>Fältchatt</h1><p>Supabase saknar konfiguration. Skapa <code>.env.local</code> från <code>.env.example</code>.</p></div>';
-    document.querySelector('.bottom-nav').hidden = true;
+    document.querySelector('.app-frame').hidden = true;
     return;
   }
   setAuthChangeHandler(reloadAll);
@@ -58,7 +58,7 @@ async function reloadAll() {
 
 function renderAll() {
   renderAuth();
-  document.querySelector('.bottom-nav').hidden = !appState.user;
+  document.querySelector('.app-frame').hidden = !appState.user;
   setSessionPill();
   renderProfile();
   renderGroups(async () => {
@@ -67,6 +67,7 @@ function renderAll() {
     renderAll();
   });
   renderMapView(reloadAll);
+  renderMapControls(reloadAll);
   renderChat();
   setView(appState.user ? appState.selectedView : 'profile');
   renderIcons();

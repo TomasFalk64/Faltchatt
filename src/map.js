@@ -3,9 +3,9 @@ import 'leaflet/dist/leaflet.css';
 import { appState, getSymbol } from './state.js';
 import { canAdminGroup, isApprovedMember } from './groups.js';
 import { sendMessage } from './chat.js';
-import { loadGeoTiffLayer, setGeoTiffOpacity, uploadGroupGeoTiff } from './geotiff.js';
+import { loadGeoTiffLayer, removeGeoTiffLayer, setGeoTiffOpacity, uploadGroupGeoTiff } from './geotiff.js';
 import { requireSupabase } from './supabase.js';
-import { el, formatRelative, icon, memberName, renderIcons, showToast } from './ui.js';
+import { el, formatRelative, friendlyError, icon, memberColor, memberName, memberShowsAlias, renderIcons, showToast } from './ui.js';
 
 let map;
 let ownMarker;
@@ -14,6 +14,7 @@ let sentLocationsLayer;
 let locationChannel;
 let watchId;
 let lastSent = { at: 0, lat: null, lng: null };
+let geotiffOpacity = 0.8;
 
 export async function loadLocations() {
   if (!appState.activeGroupId || !isApprovedMember()) {
@@ -42,23 +43,30 @@ export function unsubscribeLocations() {
 export async function renderMapView(onChanged) {
   const view = document.querySelector('#map-view');
   view.innerHTML = '';
-  if (!appState.activeGroup) {
-    view.append(el('div', { className: 'page narrow' }, [el('p', { className: 'panel muted', text: 'Välj eller skapa en grupp först.' })]));
-    return;
-  }
-  if (!isApprovedMember()) {
-    view.append(el('div', { className: 'page narrow' }, [el('p', { className: 'panel muted', text: 'Kartan öppnas när medlemskapet är godkänt.' })]));
-    return;
-  }
-
   const mapNode = el('div', { id: 'map' });
-  const shareToggle = el('input', { type: 'checkbox', id: 'share-location' });
-  const opacity = el('input', { type: 'range', min: '0', max: '100', value: '80' });
-  const upload = el('input', { type: 'file', accept: '.tif,.tiff,image/tiff' });
-  const uploadLabel = el('label', { hidden: !canAdminGroup() }, ['GeoTIFF', upload]);
 
-  shareToggle.addEventListener('change', () => (shareToggle.checked ? startSharing() : stopSharing()));
-  opacity.addEventListener('input', () => setGeoTiffOpacity(Number(opacity.value) / 100));
+  view.append(
+    el('div', { className: 'map-layout' }, [
+      mapNode,
+      el('div', { id: 'map-send-panel', className: 'map-send-panel', hidden: true }),
+    ]),
+  );
+  renderIcons();
+  initMap();
+  await refreshMapLayers();
+}
+
+export function renderMapControls(onChanged) {
+  const view = document.querySelector('#map-controls-view');
+  if (!view) return;
+  view.innerHTML = '';
+
+  const opacity = el('input', { type: 'range', min: '0', max: '100', value: String(Math.round(geotiffOpacity * 100)) });
+  const upload = el('input', { type: 'file', accept: '.tif,.tiff,image/tiff' });
+  opacity.addEventListener('input', () => {
+    geotiffOpacity = Number(opacity.value) / 100;
+    setGeoTiffOpacity(geotiffOpacity);
+  });
   upload.addEventListener('change', async () => {
     const file = upload.files?.[0];
     if (!file) return;
@@ -68,24 +76,22 @@ export async function renderMapView(onChanged) {
       await onChanged();
     } catch (error) {
       console.error(error);
-      showToast('Kunde inte ladda upp GeoTIFF.', 'error');
+      showToast(friendlyError(error, 'Kunde inte ladda upp GeoTIFF.'), 'error');
     }
   });
 
+  const hasApprovedGroup = Boolean(appState.activeGroup && isApprovedMember());
   view.append(
-    el('div', { className: 'map-layout' }, [
-      el('div', { className: 'map-toolbar' }, [
-        el('label', { className: 'toggle-row' }, [shareToggle, el('span', { text: 'Dela min position' })]),
+    el('div', { className: 'page sidebar-page' }, [
+      el('section', { className: 'panel stack' }, [
+        el('h2', { text: 'Karta' }),
+        el('p', { className: 'muted', text: hasApprovedGroup ? 'OpenStreetMap visas alltid. Gruppkartan visas om en GeoTIFF finns.' : 'OpenStreetMap visas även utan grupp. Gruppkarta och platsmeddelanden kräver godkänd grupp.' }),
         el('label', {}, ['GeoTIFF opacitet', opacity]),
-        uploadLabel,
+        canAdminGroup() ? el('label', {}, ['Ladda upp GeoTIFF', upload]) : null,
       ]),
-      mapNode,
-      el('div', { id: 'map-send-panel', className: 'map-send-panel', hidden: true }),
     ]),
   );
   renderIcons();
-  initMap();
-  await refreshMapLayers();
 }
 
 function initMap() {
@@ -108,10 +114,17 @@ export async function refreshMapLayers() {
   if (!map) return;
   membersLayer.clearLayers();
   sentLocationsLayer.clearLayers();
+  if (!appState.activeGroup || !isApprovedMember()) {
+    removeGeoTiffLayer(map);
+    focusRequestedLocation();
+    setTimeout(() => map.invalidateSize(), 80);
+    return;
+  }
   appState.locations.forEach((location) => {
     if (location.user_id === appState.user.id) return;
     const marker = L.marker([location.latitude, location.longitude], { icon: memberIcon(location.user_id, location.updated_at) });
-    marker.bindPopup(`<strong>${escapeHtml(memberName(location.user_id))}</strong><br>Senast uppdaterad: ${formatRelative(location.updated_at)}<br>Noggrannhet: ±${Math.round(location.accuracy || 0)} m`);
+    const name = memberShowsAlias(location.user_id) ? `<strong>${escapeHtml(memberName(location.user_id))}</strong><br>` : '';
+    marker.bindPopup(`${name}Senast uppdaterad: ${formatRelative(location.updated_at)}<br>Noggrannhet: ±${Math.round(location.accuracy || 0)} m`);
     marker.addTo(membersLayer);
   });
   appState.messages
@@ -119,7 +132,7 @@ export async function refreshMapLayers() {
     .forEach((message) => {
       L.marker([message.latitude, message.longitude]).bindPopup(escapeHtml(message.text || 'Skickad plats')).addTo(sentLocationsLayer);
     });
-  await loadGeoTiffLayer(map, 0.8);
+  await loadGeoTiffLayer(map, geotiffOpacity);
   focusRequestedLocation();
   setTimeout(() => map.invalidateSize(), 80);
 }
@@ -129,15 +142,16 @@ function memberIcon(userId, updatedAt) {
   const ageClass = minutes > 10 ? 'old' : minutes > 2 ? 'faded' : 'fresh';
   const member = appState.members.find((item) => item.user_id === userId);
   const symbol = getSymbol(member?.profiles?.symbol || 'circle').glyph;
+  const color = memberColor(userId);
   return L.divIcon({
     className: `member-map-icon ${ageClass}`,
-    html: `<span>${escapeHtml(symbol)}</span>`,
+    html: `<span style="background:${escapeHtml(color)}">${escapeHtml(symbol)}</span>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
   });
 }
 
-function startSharing() {
+export function startSharing() {
   if (!navigator.geolocation) {
     showToast('GPS stöds inte av webbläsaren.', 'error');
     return;
@@ -149,7 +163,7 @@ function startSharing() {
   });
 }
 
-function stopSharing() {
+export function stopSharing() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
   watchId = null;
 }
@@ -158,12 +172,14 @@ async function handlePosition(position) {
   const { latitude, longitude, accuracy, heading, speed } = position.coords;
   if (map && !ownMarker) map.setView([latitude, longitude], 15);
   if (ownMarker) ownMarker.setLatLng([latitude, longitude]);
-  else ownMarker = L.circleMarker([latitude, longitude], { radius: 8, color: '#0969da', fillColor: '#2f81f7', fillOpacity: 0.9 }).addTo(map);
+  else ownMarker = L.marker([latitude, longitude], { icon: ownPositionIcon() }).addTo(map);
+  ownMarker.setIcon(ownPositionIcon());
 
   const moved = lastSent.lat === null || distanceMeters(lastSent.lat, lastSent.lng, latitude, longitude) > 15;
   const enoughTime = Date.now() - lastSent.at > 10000;
   if (!moved && !enoughTime) return;
   lastSent = { at: Date.now(), lat: latitude, lng: longitude };
+  if (!appState.activeGroupId || !isApprovedMember()) return;
   try {
     const { error } = await requireSupabase().from('locations').upsert(
       {
@@ -181,7 +197,7 @@ async function handlePosition(position) {
     if (error) throw error;
   } catch (error) {
     console.error(error);
-    showToast('Kunde inte dela positionen.', 'error');
+    showToast(friendlyError(error, 'Kunde inte dela positionen.'), 'error');
   }
 }
 
@@ -191,6 +207,10 @@ function handlePositionError(error) {
 }
 
 function openSendLocationPanel(latlng) {
+  if (!appState.activeGroupId || !isApprovedMember()) {
+    showToast('Välj en godkänd grupp för att skicka platser i chatten.', 'warning');
+    return;
+  }
   const panel = document.querySelector('#map-send-panel');
   const text = el('input', { value: 'Ses här om 20 min' });
   panel.innerHTML = '';
@@ -204,7 +224,7 @@ function openSendLocationPanel(latlng) {
         showToast('Platsen skickades.', 'success');
       } catch (error) {
         console.error(error);
-        showToast('Kunde inte skicka platsen.', 'error');
+        showToast(friendlyError(error, 'Kunde inte skicka platsen.'), 'error');
       }
     } }, [
       el('strong', { text: 'Skicka denna position till gruppen?' }),
@@ -239,6 +259,17 @@ function escapeHtml(value) {
   const div = document.createElement('div');
   div.textContent = String(value);
   return div.innerHTML;
+}
+
+function ownPositionIcon() {
+  const symbol = getSymbol(appState.profile?.symbol || 'circle').glyph;
+  const color = appState.profile?.symbol_color || '#17324d';
+  return L.divIcon({
+    className: 'own-map-icon',
+    html: `<span style="background:${escapeHtml(color)}">${escapeHtml(symbol)}</span>`,
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
+  });
 }
 
 window.addEventListener('faltchatt:map-visible', () => {

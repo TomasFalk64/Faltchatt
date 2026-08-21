@@ -1,6 +1,6 @@
 import { requireSupabase } from './supabase.js';
 import { appState, setActiveGroupId } from './state.js';
-import { el, icon, renderIcons, showToast } from './ui.js';
+import { el, friendlyError, icon, renderIcons, showToast } from './ui.js';
 
 export function isApprovedMember() {
   return appState.memberships.some((member) => member.group_id === appState.activeGroupId && member.status === 'approved');
@@ -25,13 +25,16 @@ export async function loadGroups() {
   if (error) throw error;
   appState.memberships = memberships || [];
 
-  if (!appState.activeGroupId && appState.memberships.length) {
-    setActiveGroupId(appState.memberships[0].group_id);
-  }
   if (appState.activeGroupId) {
     const membership = appState.memberships.find((item) => item.group_id === appState.activeGroupId);
-    appState.activeGroup = membership?.groups || null;
-    await loadMembers();
+    if (membership) {
+      appState.activeGroup = membership.groups || null;
+      await loadMembers();
+    } else {
+      setActiveGroupId(null);
+      appState.activeGroup = null;
+      appState.members = [];
+    }
   } else {
     appState.activeGroup = null;
     appState.members = [];
@@ -42,7 +45,7 @@ export async function loadMembers() {
   if (!appState.activeGroupId) return;
   const { data, error } = await requireSupabase()
     .from('group_members')
-    .select('*, profiles(id, alias, symbol, phone)')
+    .select('*, profiles(id, alias, symbol, symbol_color, show_alias, phone)')
     .eq('group_id', appState.activeGroupId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -72,7 +75,7 @@ export function renderGroups(onChanged = async () => {}) {
   groupSelect.value = appState.activeGroupId || '';
 
   view.append(
-    el('div', { className: 'page two-col' }, [
+    el('div', { className: 'page sidebar-page' }, [
       el('section', { className: 'panel stack' }, [
         el('h2', { text: 'Grupp' }),
         el('label', {}, ['Aktuell grupp', groupSelect]),
@@ -110,7 +113,7 @@ function createGroupForm(onChanged) {
       await onChanged();
     } catch (error) {
       console.error(error);
-      showToast('Kunde inte skapa grupp.', 'error');
+      showToast(friendlyError(error, 'Kunde inte skapa grupp.'), 'error');
     }
   };
   return el('form', { className: 'stack subsection', onSubmit: submit }, [
@@ -133,7 +136,7 @@ function joinGroupForm(onChanged) {
       await onChanged();
     } catch (error) {
       console.error(error);
-      showToast('Kunde inte gå med. Kontrollera gruppkoden.', 'error');
+      showToast(friendlyError(error, 'Kunde inte gå med.'), 'error');
     }
   };
   return el('form', { className: 'stack subsection', onSubmit: submit }, [
@@ -152,7 +155,7 @@ function memberList(onChanged) {
     const profile = member.profiles || {};
     list.append(
       el('div', { className: `member-row status-${member.status}` }, [
-        el('span', { className: 'member-symbol', text: profile.symbol ? profileSymbol(profile.symbol) : '●' }),
+        el('span', { className: 'member-symbol', text: profile.symbol ? profileSymbol(profile.symbol) : '●', style: `background: ${profile.symbol_color || '#17324d'}` }),
         el('div', { className: 'member-main' }, [
           el('strong', { text: profile.alias || 'Okänd' }),
           el('small', { text: `${member.role} · ${member.status}` }),
@@ -189,6 +192,6 @@ async function updateMember(memberId, patch, onChanged) {
     await onChanged();
   } catch (error) {
     console.error(error);
-    showToast('Kunde inte uppdatera medlem.', 'error');
+    showToast(friendlyError(error, 'Kunde inte uppdatera medlem.'), 'error');
   }
 }

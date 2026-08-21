@@ -68,6 +68,9 @@ supabase/migrations/
   002_rls_policies.sql
   003_realtime.sql
   004_storage.sql
+  005_rpc_grants.sql
+  006_fix_join_code_function.sql
+  007_profile_symbol_color_alias.sql
 ```
 
 ## Databastabeller

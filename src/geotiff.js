@@ -5,6 +5,8 @@ import { appState } from './state.js';
 import { showToast } from './ui.js';
 
 let rasterLayer = null;
+let loadedPath = null;
+const failedPaths = new Set();
 
 export async function uploadGroupGeoTiff(file) {
   const extension = file.name.toLowerCase().endsWith('.tiff') ? 'tiff' : 'tif';
@@ -19,29 +21,43 @@ export async function uploadGroupGeoTiff(file) {
   const { error: updateError } = await client.from('groups').update({ map_file_path: path }).eq('id', appState.activeGroupId);
   if (updateError) throw updateError;
   appState.activeGroup.map_file_path = path;
+  failedPaths.delete(path);
   return path;
 }
 
 export async function loadGeoTiffLayer(map, opacity = 0.8) {
-  removeGeoTiffLayer(map);
-  if (!appState.activeGroup?.map_file_path) return null;
+  const path = appState.activeGroup?.map_file_path;
+  if (!path) {
+    removeGeoTiffLayer(map);
+    return null;
+  }
+  if (rasterLayer && loadedPath === path) {
+    rasterLayer.setOpacity(opacity);
+    if (!map.hasLayer(rasterLayer)) rasterLayer.addTo(map);
+    return rasterLayer;
+  }
+  if (failedPaths.has(path)) return null;
+
   try {
     const client = requireSupabase();
-    const { data, error } = await client.storage.from('group-maps').download(appState.activeGroup.map_file_path);
+    const { data, error } = await client.storage.from('group-maps').download(path);
     if (error) throw error;
     const arrayBuffer = await data.arrayBuffer();
     const georaster = await parseGeoraster(arrayBuffer);
+    removeGeoTiffLayer(map);
     rasterLayer = new GeoRasterLayer({
       georaster,
       opacity,
       resolution: 128,
     });
+    loadedPath = path;
     rasterLayer.addTo(map);
     map.fitBounds(rasterLayer.getBounds());
     return rasterLayer;
   } catch (error) {
     console.error(error);
-    showToast('GeoTIFF-kartan kunde inte läsas eller har projektion som inte stöds.', 'error');
+    failedPaths.add(path);
+    showToast(`GeoTIFF-kartan kunde inte läsas: ${error?.message || 'projektion eller georeferering stöds inte.'}`, 'error');
     return null;
   }
 }
@@ -53,4 +69,5 @@ export function setGeoTiffOpacity(value) {
 export function removeGeoTiffLayer(map) {
   if (rasterLayer && map?.hasLayer(rasterLayer)) map.removeLayer(rasterLayer);
   rasterLayer = null;
+  loadedPath = null;
 }

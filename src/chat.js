@@ -1,7 +1,7 @@
 import { requireSupabase } from './supabase.js';
 import { appState } from './state.js';
 import { isApprovedMember } from './groups.js';
-import { el, formatTime, icon, memberName, memberSymbol, renderIcons, setView, showToast } from './ui.js';
+import { el, formatTime, friendlyError, icon, memberColor, memberName, memberShowsAlias, memberSymbol, renderIcons, setView, showToast } from './ui.js';
 
 let chatChannel = null;
 let answerChannel = null;
@@ -70,7 +70,7 @@ export function renderChat() {
     return;
   }
   const list = el('div', { className: 'message-list' }, appState.messages.map((message) => renderMessage(message)));
-  view.append(el('div', { className: 'chat-layout' }, [list, composer()]));
+  view.append(el('div', { className: 'chat-layout sidebar-chat' }, [list, composer()]));
   queueMicrotask(() => {
     list.scrollTop = list.scrollHeight;
     renderIcons();
@@ -80,10 +80,11 @@ export function renderChat() {
 function renderMessage(message) {
   if (message.type === 'question') return renderQuestionMessage(message);
   const location = message.type === 'location';
+  const showAlias = memberShowsAlias(message.user_id);
   return el('article', { className: `message message-${message.type}` }, [
-    el('div', { className: 'message-avatar', text: memberSymbol(message.user_id) }),
+    el('div', { className: 'message-avatar', text: memberSymbol(message.user_id), style: `background: ${memberColor(message.user_id)}` }),
     el('div', { className: 'message-body' }, [
-      el('div', { className: 'message-meta' }, [el('strong', { text: memberName(message.user_id) }), el('time', { text: formatTime(message.created_at) })]),
+      el('div', { className: 'message-meta' }, [showAlias ? el('strong', { text: memberName(message.user_id) }) : null, el('time', { text: formatTime(message.created_at) })]),
       el('p', { text: location ? `📍 ${message.text || 'Plats'}` : message.text }),
       location
         ? el(
@@ -109,10 +110,11 @@ function renderQuestionMessage(message) {
   const answers = appState.answers.filter((answer) => answer.question_id === question.id);
   const answeredIds = new Set(answers.map((answer) => answer.user_id));
   const approved = appState.members.filter((member) => member.status === 'approved');
+  const showAlias = memberShowsAlias(message.user_id);
   return el('article', { className: 'message question-card' }, [
-    el('div', { className: 'message-avatar', text: memberSymbol(message.user_id) }),
+    el('div', { className: 'message-avatar', text: memberSymbol(message.user_id), style: `background: ${memberColor(message.user_id)}` }),
     el('div', { className: 'message-body stack' }, [
-      el('div', { className: 'message-meta' }, [el('strong', { text: memberName(message.user_id) }), el('time', { text: formatTime(message.created_at) })]),
+      el('div', { className: 'message-meta' }, [showAlias ? el('strong', { text: memberName(message.user_id) }) : null, el('time', { text: formatTime(message.created_at) })]),
       el('h3', { text: question.question_text }),
       el(
         'div',
@@ -132,11 +134,15 @@ function renderQuestionMessage(message) {
       ),
       el('details', {}, [
         el('summary', { text: 'Svar och ej svarat' }),
-        el('p', { text: `Svarat: ${answers.map((answer) => `${answer.profiles?.alias || memberName(answer.user_id)} - ${answer.question_options?.label || ''}`).join(', ') || 'Ingen ännu'}` }),
-        el('p', { text: `Ej svarat: ${approved.filter((member) => !answeredIds.has(member.user_id)).map((member) => member.profiles?.alias || 'Okänd').join(', ') || 'Alla har svarat'}` }),
+        el('p', { text: `Svarat: ${answers.map((answer) => `${answerLabel(answer.user_id)} - ${answer.question_options?.label || ''}`).join(', ') || 'Ingen ännu'}` }),
+        el('p', { text: `Ej svarat: ${approved.filter((member) => !answeredIds.has(member.user_id)).map((member) => answerLabel(member.user_id)).join(', ') || 'Alla har svarat'}` }),
       ]),
     ]),
   ]);
+}
+
+function answerLabel(userId) {
+  return memberShowsAlias(userId) ? memberName(userId) : memberSymbol(userId);
 }
 
 function composer() {
@@ -164,7 +170,7 @@ function composer() {
       options.value = '';
     } catch (error) {
       console.error(error);
-      showToast('Kunde inte skicka.', 'error');
+      showToast(friendlyError(error, 'Kunde inte skicka.'), 'error');
     }
   };
   return el('form', { className: 'composer', onSubmit: submit }, [
@@ -215,6 +221,6 @@ async function answerQuestion(questionId, optionId) {
     if (error) throw error;
   } catch (error) {
     console.error(error);
-    showToast('Kunde inte spara svaret.', 'error');
+    showToast(friendlyError(error, 'Kunde inte spara svaret.'), 'error');
   }
 }

@@ -2,6 +2,7 @@ import { createIcons, icons } from 'lucide';
 import { appState, getSymbol } from './state.js';
 
 const toastTimers = new Set();
+const logEntries = [];
 
 export function el(tag, options = {}, children = []) {
   const node = document.createElement(tag);
@@ -30,6 +31,7 @@ export function renderIcons() {
 }
 
 export function showToast(message, type = 'info') {
+  logEvent(message, type);
   const region = document.querySelector('#toast-region');
   if (!region) return;
   const item = el('div', { className: `toast toast-${type}`, text: message });
@@ -39,6 +41,24 @@ export function showToast(message, type = 'info') {
     toastTimers.delete(timer);
   }, 5200);
   toastTimers.add(timer);
+}
+
+export function friendlyError(error, fallback = 'Något gick fel.') {
+  const detail = error?.message || error?.details || error?.hint;
+  return detail ? `${fallback} ${detail}` : fallback;
+}
+
+export function logEvent(message, type = 'info') {
+  const stamp = new Intl.DateTimeFormat('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date());
+  logEntries.unshift(`[${stamp}] ${type.toUpperCase()}: ${message}`);
+  logEntries.splice(80);
+  renderLog();
+}
+
+export function renderLog() {
+  const output = document.querySelector('#app-log-output');
+  if (!output) return;
+  output.value = logEntries.join('\n');
 }
 
 export function formatTime(value) {
@@ -68,15 +88,27 @@ export function memberSymbol(userId) {
   return getSymbol(member?.profiles?.symbol || member?.profile?.symbol || 'circle').glyph;
 }
 
+export function memberColor(userId) {
+  const member = appState.members.find((item) => item.user_id === userId);
+  if (userId === appState.user?.id) return appState.profile?.symbol_color || '#17324d';
+  return member?.profiles?.symbol_color || member?.profile?.symbol_color || '#17324d';
+}
+
+export function memberShowsAlias(userId) {
+  if (userId === appState.user?.id) return appState.profile?.show_alias !== false;
+  const member = appState.members.find((item) => item.user_id === userId);
+  return member?.profiles?.show_alias !== false;
+}
+
 export function setView(view) {
   appState.selectedView = view;
-  document.querySelectorAll('.view').forEach((node) => {
+  document.querySelectorAll('.side-view').forEach((node) => {
     node.hidden = node.dataset.view !== view;
   });
   document.querySelectorAll('.nav-button').forEach((node) => {
     node.classList.toggle('active', node.dataset.view === view);
   });
-  if (view === 'map') window.dispatchEvent(new CustomEvent('faltchatt:map-visible'));
+  window.dispatchEvent(new CustomEvent('faltchatt:map-visible'));
 }
 
 export function renderAppShell() {
@@ -88,22 +120,44 @@ export function renderAppShell() {
         el('div', { className: 'brand' }, [el('span', { className: 'brand-mark', text: 'F' }), el('span', { text: 'Fältchatt' })]),
         el('div', { id: 'session-pill', className: 'session-pill' }),
       ]),
-      el('main', { className: 'views' }, [
+      el('main', { className: 'workspace' }, [
         el('section', { id: 'auth-view', className: 'auth-view' }),
-        el('section', { id: 'profile-view', className: 'view', 'data-view': 'profile' }),
-        el('section', { id: 'group-view', className: 'view', 'data-view': 'group', hidden: true }),
-        el('section', { id: 'map-view', className: 'view map-view', 'data-view': 'map', hidden: true }),
-        el('section', { id: 'chat-view', className: 'view', 'data-view': 'chat', hidden: true }),
-      ]),
-      el('nav', { className: 'bottom-nav' }, [
-        navButton('user', 'Profil', 'profile'),
-        navButton('users', 'Grupp', 'group'),
-        navButton('map', 'Karta', 'map'),
-        navButton('message-square', 'Chatt', 'chat'),
+        el('div', { className: 'app-frame' }, [
+          el('aside', { className: 'sidebar' }, [
+            el('nav', { className: 'side-nav' }, [
+              navButton('user', 'Profil', 'profile'),
+              navButton('users', 'Grupp', 'group'),
+              navButton('map', 'Karta', 'map'),
+              navButton('message-square', 'Chatt', 'chat'),
+            ]),
+            el('div', { className: 'sidebar-content' }, [
+              el('section', { id: 'profile-view', className: 'side-view', 'data-view': 'profile' }),
+              el('section', { id: 'group-view', className: 'side-view', 'data-view': 'group', hidden: true }),
+              el('section', { id: 'map-controls-view', className: 'side-view', 'data-view': 'map', hidden: true }),
+              el('section', { id: 'chat-view', className: 'side-view', 'data-view': 'chat', hidden: true }),
+            ]),
+            el('section', { className: 'log-panel' }, [
+              el('div', { className: 'log-header' }, [
+                el('strong', { text: 'Logg' }),
+                el('button', {
+                  className: 'small-button',
+                  type: 'button',
+                  onClick: async () => {
+                    const value = document.querySelector('#app-log-output')?.value || '';
+                    await navigator.clipboard?.writeText(value);
+                  },
+                }, [icon('copy', 'Kopiera'), 'Kopiera']),
+              ]),
+              el('textarea', { id: 'app-log-output', readonly: true, spellcheck: 'false' }),
+            ]),
+          ]),
+          el('section', { id: 'map-view', className: 'map-view', 'data-view': 'map' }),
+        ]),
       ]),
       el('div', { id: 'toast-region', className: 'toast-region', 'aria-live': 'polite' }),
     ]),
   );
+  renderLog();
   renderIcons();
 }
 
