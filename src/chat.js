@@ -6,7 +6,7 @@ import { el, formatTime, friendlyError, icon, memberColor, memberName, memberSho
 let chatChannel = null;
 let answerChannel = null;
 let chatRefreshTimer = null;
-const messageSound = new Audio('/data/golgroda.mp3');
+const messageSound = new Audio(`${import.meta.env.BASE_URL}data/golgroda.mp3`);
 let soundUnlocked = false;
 
 messageSound.preload = 'auto';
