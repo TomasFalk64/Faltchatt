@@ -1,98 +1,126 @@
 # Fältchatt
 
-En första webb-MVP för gruppbaserad fältkommunikation: Supabase Auth, grupper med godkännande, Leaflet-karta, GPS-positioner, gruppchatt, platsmeddelanden, polls och GeoTIFF-karta via Supabase Storage.
+Fältchatt är en webb-MVP för gruppbaserad fältkommunikation. Appen använder Supabase för inloggning, grupper, godkända medlemskap, chatt, polls, positioner, Realtime och privat lagring av GeoTIFF-kartor.
 
-## Arkitektur
+## Funktioner
 
-- Frontend: Vite + modern vanilla JavaScript i moduler under `src/`.
-- Karta: Leaflet med OpenStreetMap som baskarta.
-- GeoTIFF: `georaster` och `georaster-layer-for-leaflet`, läst från privat Supabase Storage-bucket.
+- Konto med e-post/lösenord, e-postbekräftelse och lösenordsåterställning.
+- Profil med alias, e-post, mobilnummer, färg och personlig symbol.
+- Grupper med gruppkod, pending/godkända medlemskap och owner/admin-godkännande.
+- Notisprickar i sidnaven för pending medlemskap och olästa chattmeddelanden.
+- Leaflet-karta med OpenStreetMap, egen position och gruppmedlemmars senaste positioner.
+- Platsmeddelanden från kartan till chatten, med möjlighet att dölja platsnålar lokalt.
+- GeoTIFF-uppladdning till Supabase Storage, lista över uppladdade kartor, visa/dölj och radera.
+- Gruppchatt med ljudnotis från `public/data/golgroda.mp3` vid nya meddelanden från andra.
+- Polls i chatten med svarsalternativ och enkel sammanställning.
+- Loggruta i vänsterspalten för händelser och felmeddelanden.
+
+## Teknik
+
+- Frontend: Vite och vanilla JavaScript-moduler i `src/`.
+- Karta: Leaflet och OpenStreetMap.
+- GeoTIFF: `georaster`, `georaster-layer-for-leaflet` och `proj4-fully-loaded`.
 - Backend: Supabase direkt från frontend med anon/publishable key.
-- Databas: PostgreSQL med RLS, RPC-funktioner, Realtime och Storage policies.
+- Databas: PostgreSQL med RLS, RPC-funktioner och Realtime.
+- Storage: privat Supabase bucket `group-maps`.
 
-## Kom igång lokalt
+## Kom Igång Lokalt
 
-1. Installera beroenden:
+Installera beroenden:
 
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
-2. Skapa `.env.local`:
+Skapa `.env.local` i projektroten:
 
-   ```bash
-   cp .env.example .env.local
-   ```
+```bash
+cp .env.example .env.local
+```
 
-3. Fyll i:
+Fyll i:
 
-   ```text
-   VITE_SUPABASE_URL=
-   VITE_SUPABASE_ANON_KEY=
-   ```
+```text
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+```
 
-4. Kör Supabase-migrationerna enligt [SUPABASE_SETUP.md](./SUPABASE_SETUP.md).
+Kör Supabase-migrationerna enligt [SUPABASE_SETUP.md](./SUPABASE_SETUP.md).
 
-5. Starta appen:
+Starta appen:
 
-   ```bash
-   npm run dev
-   ```
+```bash
+npm run dev
+```
 
-## Testa med två användare
+På Windows/PowerShell kan `npm.ps1` ibland blockeras av execution policy. Då fungerar ofta:
 
-1. Öppna appen i två olika webbläsare eller en vanlig och en privat flik.
-2. Skapa två konton med olika e-postadresser.
-3. Användare A skapar en grupp och kopierar gruppkoden.
-4. Användare B går med via gruppkoden och får status `pending`.
-5. Användare A går till Grupp och godkänner B.
-6. Båda kan nu använda karta, chatt, polls och positionsdelning.
+```powershell
+cmd /c npm run dev
+```
+
+## Supabase
+
+Appen kräver migrationerna i `supabase/migrations/` i nummerordning. De skapar tabeller, RLS policies, RPC-funktioner, Realtime-publication och Storage bucket.
+
+Viktigt för auth:
+
+- Använd bara Supabase anon/publishable key i frontend.
+- Lägg till lokal redirect URL, exempelvis `http://127.0.0.1:5173`, i Supabase Auth settings.
+- Supabase standardmail har låg rate limit. För rimlig testning behövs ofta custom SMTP, till exempel Brevo eller Resend.
+- Lösenordsåterställning loggar in användaren i recovery-läge; appen visar då formulär för nytt lösenord i Profil.
+
+## Testflöde
+
+1. Öppna appen i två webbläsare eller en vanlig och en privat flik.
+2. Skapa två konton med olika e-postadresser och bekräfta via e-post.
+3. Användare A skapar en grupp.
+4. A väljer gruppen i gruppväljaren och delar gruppkoden.
+5. Användare B begär medlemskap med gruppkoden och får status `pending`.
+6. A får en röd prick vid Grupp och kan godkänna B.
+7. B väljer gruppen när medlemskapet är godkänt.
+8. Testa chatt, polls, position, platsmeddelanden och GeoTIFF-kartor.
 
 ## Projektstruktur
 
 ```text
 src/
-  auth.js
-  chat.js
-  geotiff.js
-  groups.js
-  main.js
-  map.js
-  state.js
-  supabase.js
-  ui.js
-  styles.css
+  auth.js        konto, profil och lösenordsåterställning
+  chat.js        chatt, polls, ljudnotis och oläststatus
+  geotiff.js     uppladdade GeoTIFF-lager via Supabase Storage
+  groups.js      grupper, medlemskap och adminflöde
+  main.js        bootstrap, laddning och Realtime-prenumerationer
+  map.js         Leaflet-karta, positioner och platsmeddelanden
+  state.js       klientstate och lokalt sparade val
+  supabase.js    Supabase-klient
+  ui.js          gemensam DOM/UI, symboler, logg och nav
+  styles.css     layout och komponentstilar
+
+public/data/
+  golgroda.mp3   ljudnotis för ny chatt
 
 supabase/migrations/
   001_initial_schema.sql
-  002_rls_policies.sql
-  003_realtime.sql
-  004_storage.sql
-  005_rpc_grants.sql
-  006_fix_join_code_function.sql
-  007_profile_symbol_color_alias.sql
-  008_profile_symbol_choices.sql
-  009_profile_symbol_final_set.sql
+  ...
+  012_repair_profile_symbol_constraint.sql
 ```
 
-## Databastabeller
+## Kända Begränsningar
 
-Appen använder `profiles`, `groups`, `group_members`, `locations`, `messages`, `questions`, `question_options` och `question_answers`.
-
-## Kända begränsningar
-
-- Webbläsare kan stoppa GPS när mobilen är låst eller fliken ligger i bakgrunden.
+- Webbläsare kan strypa GPS och timers när fliken är i bakgrunden eller enheten sparar ström.
+- Andra medlemmars position kan inte tvingas fram från din webbläsare; appen kan bara läsa deras senast sparade position.
+- Ljudnotiser kräver att användaren först interagerat med sidan, enligt webbläsarens ljudregler.
 - GeoTIFF-stöd beror på filens georeferering och projektion.
-- Första versionen stödjer små GeoTIFF-filer, cirka 1-5 MB.
-- Ingen offline-synk, push-notiser, bilder i chatten eller native-app ingår.
-- Produktionsbuilden blir stor eftersom GeoTIFF-biblioteken drar in många moduler; code splitting är ett rimligt nästa steg.
+- Storage-migrationen har låg filstorleksgräns för GeoTIFF, ungefär 5 MB.
+- Ingen offline-synk, push-notiser eller native-app ingår ännu.
+- Produktionsbuilden är stor eftersom GeoTIFF-biblioteken drar in många moduler.
 
 ## Verifiering
 
-Kört:
+Senast kontrollerat med:
 
 ```bash
 npm run build
 ```
 
-Builden gick igenom. `npm install` rapporterade sårbarheter i dependency-trädet, främst transitive paket från äldre GIS-bibliotek. Kör `npm audit` innan produktion och byt GeoTIFF-stack om auditkraven är hårda.
+Builden går igenom. Vite varnar för stor bundle, vilket är väntat med nuvarande GeoTIFF-stack.
