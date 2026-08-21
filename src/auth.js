@@ -1,5 +1,5 @@
 import { requireSupabase, supabase } from './supabase.js';
-import { appState, SYMBOLS } from './state.js';
+import { appState, SYMBOLS, SYMBOL_COLORS } from './state.js';
 import { startSharing, stopSharing } from './map.js';
 import { el, friendlyError, icon, renderIcons, setSessionPill, showToast } from './ui.js';
 
@@ -42,10 +42,10 @@ export async function ensureProfile() {
     return data;
   }
 
-  const alias = user.email?.split('@')[0] || 'Fältanvändare';
+  const alias = user.email?.split('@')[0] || 'Faltanvandare';
   const { data: created, error: createError } = await client
     .from('profiles')
-    .insert({ id: user.id, alias, symbol: 'circle', symbol_color: '#17324d', show_alias: true, email: user.email })
+    .insert({ id: user.id, alias, symbol: 'circle', symbol_color: SYMBOL_COLORS[0], show_alias: true, email: user.email })
     .select('*')
     .single();
   if (createError) throw createError;
@@ -129,7 +129,7 @@ export function renderProfile() {
   const alias = el('input', { value: appState.profile?.alias || '', placeholder: 'Alias' });
   const phone = el('input', { value: appState.profile?.phone || '', placeholder: 'Mobilnummer', type: 'tel' });
   const symbol = el('select', {}, SYMBOLS.map((item) => el('option', { value: item.id, text: `${item.glyph} ${item.label}` })));
-  const symbolColor = el('input', { type: 'color', value: appState.profile?.symbol_color || '#17324d' });
+  let selectedColor = appState.profile?.symbol_color || SYMBOL_COLORS[0];
   const showAlias = el('input', { type: 'checkbox' });
   const shareToggle = el('input', { type: 'checkbox', id: 'profile-share-location' });
   symbol.value = appState.profile?.symbol || 'circle';
@@ -143,10 +143,10 @@ export function renderProfile() {
         .from('profiles')
         .upsert({
           id: appState.user.id,
-          alias: alias.value.trim() || 'Fältanvändare',
+          alias: alias.value.trim() || 'Faltanvandare',
           phone: phone.value.trim() || null,
           symbol: symbol.value,
-          symbol_color: symbolColor.value,
+          symbol_color: selectedColor,
           show_alias: showAlias.checked,
           email: appState.user.email,
           updated_at: new Date().toISOString(),
@@ -163,18 +163,32 @@ export function renderProfile() {
     }
   };
 
-  const previewGlyph = el('span', { text: SYMBOLS.find((item) => item.id === symbol.value)?.glyph || '●', style: `background: ${symbolColor.value}` });
+  const previewGlyph = el('span', { text: SYMBOLS.find((item) => item.id === symbol.value)?.glyph || '●', style: `background: ${selectedColor}` });
+  const colorButtons = SYMBOL_COLORS.map((color) =>
+    el('button', {
+      type: 'button',
+      className: `color-swatch ${color.toLowerCase() === selectedColor.toLowerCase() ? 'active' : ''}`,
+      style: `background: ${color}`,
+      title: color,
+      onClick: () => {
+        selectedColor = color;
+        colorButtons.forEach((button) => button.classList.toggle('active', button.title.toLowerCase() === selectedColor.toLowerCase()));
+        updatePreview();
+      },
+    }),
+  );
   const updatePreview = () => {
     previewGlyph.textContent = SYMBOLS.find((item) => item.id === symbol.value)?.glyph || '●';
-    previewGlyph.style.background = symbolColor.value;
+    previewGlyph.style.background = selectedColor;
   };
+
   view.append(
     el('div', { className: 'page narrow' }, [
       el('h2', { text: 'Profil' }),
       el('form', { className: 'panel stack', onSubmit: save }, [
         el('label', {}, ['Alias', alias]),
         el('label', {}, ['Symbol', symbol]),
-        el('label', {}, ['Symbolfärg', symbolColor]),
+        el('fieldset', { className: 'color-picker' }, [el('legend', { text: 'Symbolfärg' }), ...colorButtons]),
         el('div', { className: 'symbol-preview' }, [previewGlyph, 'Visas på kartan']),
         el('label', {}, ['E-post', el('input', { value: appState.user.email || '', disabled: true })]),
         el('label', {}, ['Mobilnummer', phone]),
@@ -186,6 +200,5 @@ export function renderProfile() {
     ]),
   );
   symbol.addEventListener('change', updatePreview);
-  symbolColor.addEventListener('input', updatePreview);
   renderIcons();
 }

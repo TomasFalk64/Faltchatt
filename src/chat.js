@@ -5,6 +5,7 @@ import { el, formatTime, friendlyError, icon, memberColor, memberName, memberSho
 
 let chatChannel = null;
 let answerChannel = null;
+let chatRefreshTimer = null;
 
 export async function loadChatData() {
   if (!appState.activeGroupId || !isApprovedMember()) {
@@ -48,6 +49,7 @@ export function subscribeChat(onChanged) {
     .channel(`answers:${appState.activeGroupId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'question_answers', filter: `group_id=eq.${appState.activeGroupId}` }, onChanged)
     .subscribe();
+  chatRefreshTimer = window.setInterval(onChanged, 1000);
 }
 
 export function unsubscribeChat() {
@@ -55,6 +57,8 @@ export function unsubscribeChat() {
   [chatChannel, answerChannel].filter(Boolean).forEach((channel) => client.removeChannel(channel));
   chatChannel = null;
   answerChannel = null;
+  if (chatRefreshTimer) window.clearInterval(chatRefreshTimer);
+  chatRefreshTimer = null;
 }
 
 export function renderChat() {
@@ -62,14 +66,15 @@ export function renderChat() {
   view.innerHTML = '';
   if (!appState.user) return;
   if (!appState.activeGroup) {
-    view.append(el('div', { className: 'page narrow' }, [el('p', { className: 'panel muted', text: 'Välj eller skapa en grupp först.' })]));
+    view.append(el('div', { className: 'page narrow' }, [el('p', { className: 'panel muted', text: 'Valj eller skapa en grupp forst.' })]));
     return;
   }
   if (!isApprovedMember()) {
-    view.append(el('div', { className: 'page narrow' }, [el('p', { className: 'panel muted', text: 'Chatten öppnas när medlemskapet är godkänt.' })]));
+    view.append(el('div', { className: 'page narrow' }, [el('p', { className: 'panel muted', text: 'Chatten oppnas nar medlemskapet ar godkant.' })]));
     return;
   }
-  const list = el('div', { className: 'message-list' }, appState.messages.map((message) => renderMessage(message)));
+  const list = el('div', { id: 'chat-message-list', className: 'message-list' }, appState.messages.map((message) => renderMessage(message)));
+  list.dataset.signature = chatSignature();
   view.append(el('div', { className: 'chat-layout sidebar-chat' }, [list, composer()]));
   queueMicrotask(() => {
     list.scrollTop = list.scrollHeight;
@@ -77,15 +82,46 @@ export function renderChat() {
   });
 }
 
+export async function refreshChatMessages() {
+  await loadChatData();
+  renderMessageList();
+}
+
+function renderMessageList() {
+  const list = document.querySelector('#chat-message-list');
+  if (!list) {
+    renderChat();
+    return;
+  }
+  const signature = chatSignature();
+  if (list.dataset.signature === signature) return;
+  const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 120;
+  list.replaceChildren(...appState.messages.map((message) => renderMessage(message)));
+  list.dataset.signature = signature;
+  if (nearBottom) list.scrollTop = list.scrollHeight;
+  renderIcons();
+}
+
+function chatSignature() {
+  return [
+    appState.messages.map((message) => `${message.id}:${message.created_at}:${message.text}`).join('|'),
+    appState.answers.map((answer) => `${answer.question_id}:${answer.user_id}:${answer.option_id}`).join('|'),
+  ].join('::');
+}
+
 function renderMessage(message) {
   if (message.type === 'question') return renderQuestionMessage(message);
   const location = message.type === 'location';
   const showAlias = memberShowsAlias(message.user_id);
-  return el('article', { className: `message message-${message.type}` }, [
-    el('div', { className: 'message-avatar', text: memberSymbol(message.user_id), style: `background: ${memberColor(message.user_id)}` }),
+  const own = message.user_id === appState.user?.id;
+  return el('article', { className: `message message-${message.type} ${own ? 'own-message' : ''}` }, [
     el('div', { className: 'message-body' }, [
-      el('div', { className: 'message-meta' }, [showAlias ? el('strong', { text: memberName(message.user_id) }) : null, el('time', { text: formatTime(message.created_at) })]),
-      el('p', { text: location ? `📍 ${message.text || 'Plats'}` : message.text }),
+      el('div', { className: 'message-meta' }, [
+        el('span', { className: 'message-inline-symbol', text: memberSymbol(message.user_id), style: `background: ${memberColor(message.user_id)}` }),
+        showAlias ? el('strong', { text: memberName(message.user_id) }) : null,
+        el('time', { text: formatTime(message.created_at) }),
+      ]),
+      el('p', { text: location ? `Plats: ${message.text || 'Plats'}` : message.text }),
       location
         ? el(
             'button',
@@ -97,7 +133,7 @@ function renderMessage(message) {
                 window.dispatchEvent(new CustomEvent('faltchatt:focus-location'));
               },
             },
-            [icon('map-pin', 'Visa'), 'Visa på kartan'],
+            [icon('map-pin', 'Visa'), 'Visa pa kartan'],
           )
         : null,
     ]),
@@ -111,10 +147,14 @@ function renderQuestionMessage(message) {
   const answeredIds = new Set(answers.map((answer) => answer.user_id));
   const approved = appState.members.filter((member) => member.status === 'approved');
   const showAlias = memberShowsAlias(message.user_id);
-  return el('article', { className: 'message question-card' }, [
-    el('div', { className: 'message-avatar', text: memberSymbol(message.user_id), style: `background: ${memberColor(message.user_id)}` }),
+  const own = message.user_id === appState.user?.id;
+  return el('article', { className: `message question-card ${own ? 'own-message' : ''}` }, [
     el('div', { className: 'message-body stack' }, [
-      el('div', { className: 'message-meta' }, [showAlias ? el('strong', { text: memberName(message.user_id) }) : null, el('time', { text: formatTime(message.created_at) })]),
+      el('div', { className: 'message-meta' }, [
+        el('span', { className: 'message-inline-symbol', text: memberSymbol(message.user_id), style: `background: ${memberColor(message.user_id)}` }),
+        showAlias ? el('strong', { text: memberName(message.user_id) }) : null,
+        el('time', { text: formatTime(message.created_at) }),
+      ]),
       el('h3', { text: question.question_text }),
       el(
         'div',
@@ -134,7 +174,7 @@ function renderQuestionMessage(message) {
       ),
       el('details', {}, [
         el('summary', { text: 'Svar och ej svarat' }),
-        el('p', { text: `Svarat: ${answers.map((answer) => `${answerLabel(answer.user_id)} - ${answer.question_options?.label || ''}`).join(', ') || 'Ingen ännu'}` }),
+        el('p', { text: `Svarat: ${answers.map((answer) => `${answerLabel(answer.user_id)} - ${answer.question_options?.label || ''}`).join(', ') || 'Ingen annu'}` }),
         el('p', { text: `Ej svarat: ${approved.filter((member) => !answeredIds.has(member.user_id)).map((member) => answerLabel(member.user_id)).join(', ') || 'Alla har svarat'}` }),
       ]),
     ]),
@@ -146,39 +186,48 @@ function answerLabel(userId) {
 }
 
 function composer() {
-  const mode = el('select', {}, [
-    el('option', { value: 'text', text: 'Nytt meddelande' }),
-    el('option', { value: 'question', text: 'Ny fråga' }),
-  ]);
-  const text = el('textarea', { rows: '2', placeholder: 'Skriv meddelande' });
+  let mode = 'text';
+  const modeToggle = el('button', { type: 'button', className: 'mode-toggle', text: 'Text' });
+  const text = el('textarea', { className: 'composer-text', rows: '2', placeholder: 'Skriv meddelande' });
   const options = el('input', { placeholder: 'Svarsalternativ, separera med kommatecken' });
-  const optionsLabel = el('label', { hidden: true }, ['Alternativ', options]);
-  mode.addEventListener('change', () => {
-    const isQuestion = mode.value === 'question';
-    text.placeholder = isQuestion ? 'Frågetext' : 'Skriv meddelande';
-    optionsLabel.hidden = !isQuestion;
+  const optionsRow = el('div', { className: 'composer-options', hidden: true }, [options]);
+  const inputStack = el('div', { className: 'composer-inputs' }, [text, optionsRow]);
+  const form = el('form', { className: 'composer text-mode' });
+
+  modeToggle.addEventListener('click', () => {
+    mode = mode === 'text' ? 'question' : 'text';
+    const isQuestion = mode === 'question';
+    modeToggle.textContent = isQuestion ? 'Poll' : 'Text';
+    text.placeholder = isQuestion ? 'Polltext' : 'Skriv meddelande';
+    optionsRow.hidden = !isQuestion;
+    form.classList.toggle('poll-mode', isQuestion);
+    form.classList.toggle('text-mode', !isQuestion);
   });
+
   const submit = async (event) => {
     event.preventDefault();
     try {
-      if (mode.value === 'question') {
+      if (mode === 'question') {
         await createQuestion(text.value.trim(), options.value.split(',').map((item) => item.trim()).filter(Boolean));
       } else {
         await sendMessage(text.value.trim());
       }
       text.value = '';
       options.value = '';
+      await refreshChatMessages();
     } catch (error) {
       console.error(error);
       showToast(friendlyError(error, 'Kunde inte skicka.'), 'error');
     }
   };
-  return el('form', { className: 'composer', onSubmit: submit }, [
-    mode,
-    text,
-    optionsLabel,
-    el('button', { className: 'primary', type: 'submit' }, [icon('send', 'Skicka'), 'Skicka']),
-  ]);
+
+  form.addEventListener('submit', submit);
+  form.append(
+    modeToggle,
+    inputStack,
+    el('button', { className: 'primary send-button', type: 'submit', title: 'Skicka', 'aria-label': 'Skicka' }, [icon('send', 'Skicka')]),
+  );
+  return form;
 }
 
 export async function sendMessage(text, extra = {}) {
@@ -219,6 +268,7 @@ async function answerQuestion(questionId, optionId) {
       { onConflict: 'question_id,user_id' },
     );
     if (error) throw error;
+    await refreshChatMessages();
   } catch (error) {
     console.error(error);
     showToast(friendlyError(error, 'Kunde inte spara svaret.'), 'error');

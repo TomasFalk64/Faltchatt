@@ -7,6 +7,19 @@ export const SYMBOLS = [
   { id: 'binoculars', label: 'Kikare', glyph: '◆' },
 ];
 
+export const SYMBOL_COLORS = [
+  '#ef4444',
+  '#ec4899',
+  '#facc15',
+  '#92400e',
+  '#22c55e',
+  '#14b8a6',
+  '#2563eb',
+  '#8b5cf6',
+  '#9ca3af',
+  '#111827',
+];
+
 export const appState = {
   session: null,
   user: null,

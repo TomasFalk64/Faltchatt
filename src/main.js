@@ -2,7 +2,7 @@ import './styles.css';
 import { isSupabaseConfigured } from './supabase.js';
 import { initAuth, renderAuth, renderProfile, setAuthChangeHandler } from './auth.js';
 import { loadGroups, loadMembers, renderGroups } from './groups.js';
-import { loadChatData, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
+import { loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
 import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, subscribeLocations, unsubscribeLocations } from './map.js';
 import { appState, setActiveGroupId } from './state.js';
 import { renderAppShell, renderIcons, setSessionPill, setView, showToast } from './ui.js';
@@ -40,8 +40,7 @@ async function reloadAll() {
     }
     await Promise.all([loadChatData(), loadLocations()]);
     subscribeChat(async () => {
-      await loadChatData();
-      renderChat();
+      await refreshChatMessages();
       await refreshMapLayers();
     });
     subscribeLocations(async () => {
