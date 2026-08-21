@@ -1,10 +1,12 @@
 export const SYMBOLS = [
-  { id: 'circle', label: 'Cirkel', glyph: '●' },
-  { id: 'triangle', label: 'Triangel', glyph: '▲' },
-  { id: 'square', label: 'Kvadrat', glyph: '■' },
+  { id: 'hat', label: 'Hatt', glyph: 'hat' },
+  { id: 'tree', label: 'Träd', glyph: 'tree' },
+  { id: 'leaf', label: 'Löv', glyph: 'leaf' },
   { id: 'star', label: 'Stjärna', glyph: '★' },
-  { id: 'tree', label: 'Träd', glyph: '♣' },
-  { id: 'binoculars', label: 'Kikare', glyph: '◆' },
+  { id: 'spade', label: 'Spader', glyph: '♠' },
+  { id: 'heart', label: 'Hjärta', glyph: '♥' },
+  { id: 'train', label: 'Tåg', glyph: 'train' },
+  { id: 'car', label: 'Bil', glyph: 'car' },
 ];
 
 export const SYMBOL_COLORS = [
@@ -24,6 +26,7 @@ export const appState = {
   session: null,
   user: null,
   profile: null,
+  locationSharingEnabled: localStorage.getItem('faltchatt.locationSharingEnabled') === 'true',
   activeGroupId: localStorage.getItem('faltchatt.activeGroupId') || null,
   activeGroup: null,
   memberships: [],
@@ -36,6 +39,11 @@ export const appState = {
   pendingMapMessage: null,
   mapTarget: null,
 };
+
+export function setLocationSharingEnabled(enabled) {
+  appState.locationSharingEnabled = enabled;
+  localStorage.setItem('faltchatt.locationSharingEnabled', String(enabled));
+}
 
 export function getSymbol(symbolId) {
   return SYMBOLS.find((symbol) => symbol.id === symbolId) || SYMBOLS[0];

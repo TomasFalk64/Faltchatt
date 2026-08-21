@@ -27,6 +27,8 @@ Om du använder SQL Editor i Dashboard, kör filerna i denna ordning:
 5. `supabase/migrations/005_rpc_grants.sql`
 6. `supabase/migrations/006_fix_join_code_function.sql`
 7. `supabase/migrations/007_profile_symbol_color_alias.sql`
+8. `supabase/migrations/008_profile_symbol_choices.sql`
+9. `supabase/migrations/009_profile_symbol_final_set.sql`
 
 ## 3. Authentication
 

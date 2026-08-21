@@ -1,7 +1,7 @@
 import { requireSupabase, supabase } from './supabase.js';
-import { appState, SYMBOLS, SYMBOL_COLORS } from './state.js';
+import { appState, setLocationSharingEnabled, SYMBOLS, SYMBOL_COLORS } from './state.js';
 import { startSharing, stopSharing } from './map.js';
-import { el, friendlyError, icon, renderIcons, setSessionPill, showToast } from './ui.js';
+import { el, friendlyError, icon, renderIcons, setSessionPill, showToast, symbolNode } from './ui.js';
 
 let onAuthChanged = async () => {};
 
@@ -45,7 +45,7 @@ export async function ensureProfile() {
   const alias = user.email?.split('@')[0] || 'Faltanvandare';
   const { data: created, error: createError } = await client
     .from('profiles')
-    .insert({ id: user.id, alias, symbol: 'circle', symbol_color: SYMBOL_COLORS[0], show_alias: true, email: user.email })
+    .insert({ id: user.id, alias, symbol: SYMBOLS[0].id, symbol_color: SYMBOL_COLORS[0], show_alias: true, email: user.email })
     .select('*')
     .single();
   if (createError) throw createError;
@@ -128,13 +128,17 @@ export function renderProfile() {
 
   const alias = el('input', { value: appState.profile?.alias || '', placeholder: 'Alias' });
   const phone = el('input', { value: appState.profile?.phone || '', placeholder: 'Mobilnummer', type: 'tel' });
-  const symbol = el('select', {}, SYMBOLS.map((item) => el('option', { value: item.id, text: `${item.glyph} ${item.label}` })));
+  let selectedSymbol = SYMBOLS.some((item) => item.id === appState.profile?.symbol) ? appState.profile.symbol : SYMBOLS[0].id;
   let selectedColor = appState.profile?.symbol_color || SYMBOL_COLORS[0];
   const showAlias = el('input', { type: 'checkbox' });
   const shareToggle = el('input', { type: 'checkbox', id: 'profile-share-location' });
-  symbol.value = appState.profile?.symbol || 'circle';
   showAlias.checked = appState.profile?.show_alias !== false;
-  shareToggle.addEventListener('change', () => (shareToggle.checked ? startSharing() : stopSharing()));
+  shareToggle.checked = appState.locationSharingEnabled;
+  shareToggle.addEventListener('change', () => {
+    setLocationSharingEnabled(shareToggle.checked);
+    if (shareToggle.checked) startSharing();
+    else stopSharing();
+  });
 
   const save = async (event) => {
     event.preventDefault();
@@ -145,7 +149,7 @@ export function renderProfile() {
           id: appState.user.id,
           alias: alias.value.trim() || 'Faltanvandare',
           phone: phone.value.trim() || null,
-          symbol: symbol.value,
+          symbol: selectedSymbol,
           symbol_color: selectedColor,
           show_alias: showAlias.checked,
           email: appState.user.email,
@@ -163,7 +167,25 @@ export function renderProfile() {
     }
   };
 
-  const previewGlyph = el('span', { text: SYMBOLS.find((item) => item.id === symbol.value)?.glyph || '●', style: `background: ${selectedColor}` });
+  const getSelectedSymbol = () => SYMBOLS.find((item) => item.id === selectedSymbol) || SYMBOLS[0];
+  const previewGlyph = symbolNode(getSelectedSymbol().id, 'profile-symbol-preview');
+  previewGlyph.style.color = selectedColor;
+  const updatePreview = () => {
+    previewGlyph.replaceChildren(...symbolNode(getSelectedSymbol().id, 'profile-symbol-preview').childNodes);
+    previewGlyph.style.color = selectedColor;
+  };
+  const symbolButtons = SYMBOLS.map((symbolOption) =>
+    el('button', {
+      type: 'button',
+      className: `symbol-choice ${symbolOption.id === selectedSymbol ? 'active' : ''}`,
+      title: symbolOption.label,
+      onClick: () => {
+        selectedSymbol = symbolOption.id;
+        symbolButtons.forEach((button) => button.classList.toggle('active', button.title === symbolOption.label));
+        updatePreview();
+      },
+    }, [symbolNode(symbolOption.id, 'symbol-choice-icon')]),
+  );
   const colorButtons = SYMBOL_COLORS.map((color) =>
     el('button', {
       type: 'button',
@@ -177,17 +199,13 @@ export function renderProfile() {
       },
     }),
   );
-  const updatePreview = () => {
-    previewGlyph.textContent = SYMBOLS.find((item) => item.id === symbol.value)?.glyph || '●';
-    previewGlyph.style.background = selectedColor;
-  };
 
   view.append(
     el('div', { className: 'page narrow' }, [
       el('h2', { text: 'Profil' }),
       el('form', { className: 'panel stack', onSubmit: save }, [
         el('label', {}, ['Alias', alias]),
-        el('label', {}, ['Symbol', symbol]),
+        el('fieldset', { className: 'symbol-picker' }, [el('legend', { text: 'Symbol' }), ...symbolButtons]),
         el('fieldset', { className: 'color-picker' }, [el('legend', { text: 'Symbolfärg' }), ...colorButtons]),
         el('div', { className: 'symbol-preview' }, [previewGlyph, 'Visas på kartan']),
         el('label', {}, ['E-post', el('input', { value: appState.user.email || '', disabled: true })]),
@@ -199,6 +217,5 @@ export function renderProfile() {
       ]),
     ]),
   );
-  symbol.addEventListener('change', updatePreview);
   renderIcons();
 }

@@ -1,8 +1,9 @@
 import parseGeoraster from 'georaster';
 import GeoRasterLayer from 'georaster-layer-for-leaflet';
+import proj4FullyLoaded from 'proj4-fully-loaded';
 import { requireSupabase } from './supabase.js';
 import { appState } from './state.js';
-import { showToast } from './ui.js';
+import { logEvent, showToast } from './ui.js';
 
 let rasterLayer = null;
 let loadedPath = null;
@@ -44,10 +45,12 @@ export async function loadGeoTiffLayer(map, opacity = 0.8) {
     if (error) throw error;
     const arrayBuffer = await data.arrayBuffer();
     const georaster = await parseGeoraster(arrayBuffer);
+    logEvent(`GeoTIFF laddad. Projektion/EPSG: ${georaster.projection || 'okänd'}.`, 'info');
     removeGeoTiffLayer(map);
     rasterLayer = new GeoRasterLayer({
       georaster,
       opacity,
+      proj4: proj4FullyLoaded,
       resolution: 128,
     });
     loadedPath = path;

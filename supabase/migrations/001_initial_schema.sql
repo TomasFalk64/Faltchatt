@@ -3,7 +3,7 @@ create extension if not exists pgcrypto;
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   alias text not null check (char_length(alias) between 1 and 80),
-  symbol text not null default 'circle' check (symbol in ('circle', 'triangle', 'square', 'star', 'tree', 'binoculars')),
+  symbol text not null default 'hat' check (symbol in ('hat', 'tree', 'leaf', 'star', 'spade', 'heart', 'train', 'car')),
   symbol_color text not null default '#17324d' check (symbol_color ~ '^#[0-9A-Fa-f]{6}$'),
   show_alias boolean not null default true,
   email text,
@@ -129,7 +129,7 @@ begin
   end if;
 
   insert into public.profiles (id, alias, symbol, email)
-  values (auth.uid(), coalesce(nullif(split_part(auth.jwt() ->> 'email', '@', 1), ''), 'Fältanvändare'), 'circle', auth.jwt() ->> 'email')
+  values (auth.uid(), coalesce(nullif(split_part(auth.jwt() ->> 'email', '@', 1), ''), 'Fältanvändare'), 'hat', auth.jwt() ->> 'email')
   on conflict (id) do nothing;
 
   loop

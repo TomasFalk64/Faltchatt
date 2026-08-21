@@ -71,6 +71,8 @@ supabase/migrations/
   005_rpc_grants.sql
   006_fix_join_code_function.sql
   007_profile_symbol_color_alias.sql
+  008_profile_symbol_choices.sql
+  009_profile_symbol_final_set.sql
 ```
 
 ## Databastabeller

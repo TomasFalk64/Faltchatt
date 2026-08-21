@@ -102,8 +102,7 @@ code {
 }
 
 .brand-mark,
-.message-avatar,
-.member-symbol {
+.message-avatar {
   display: inline-grid;
   place-items: center;
   width: 32px;
@@ -112,6 +111,32 @@ code {
   background: #17324d;
   color: #fff;
   flex: 0 0 auto;
+}
+
+.member-symbol {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  font-size: 1.35rem;
+  line-height: 1;
+  background: transparent;
+  flex: 0 0 auto;
+}
+
+.symbol-svg,
+.symbol-svg svg,
+.profile-symbol-preview,
+.profile-symbol-preview svg,
+.symbol-choice-icon,
+.symbol-choice-icon svg,
+.member-symbol svg,
+.message-inline-symbol svg,
+.member-map-icon svg,
+.own-map-icon svg {
+  display: block;
+  width: 1em;
+  height: 1em;
 }
 
 .session-pill {
@@ -390,12 +415,12 @@ code {
   place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  background: #17324d;
-  color: #fff;
+  font-size: 1.9rem;
+  line-height: 1;
 }
 
-.color-picker {
+.color-picker,
+.symbol-picker {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 0.45rem;
@@ -404,11 +429,41 @@ code {
   padding: 0;
 }
 
-.color-picker legend {
+.color-picker legend,
+.symbol-picker legend {
   grid-column: 1 / -1;
   margin-bottom: 0.1rem;
   font-weight: 650;
   color: #334155;
+}
+
+.symbol-choice {
+  display: grid;
+  place-items: center;
+  gap: 0.15rem;
+  min-height: 46px;
+  border-radius: 6px;
+  padding: 0.35rem 0.2rem;
+  background: #fff;
+  border: 1px solid #c8d1dc;
+  color: #17212b;
+}
+
+.symbol-choice span {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.symbol-choice-icon {
+  display: grid;
+  place-items: center;
+  font-size: 1.7rem;
+}
+
+.symbol-choice.active {
+  border-color: #146c43;
+  box-shadow: 0 0 0 2px #146c43;
+  background: #edf8f2;
 }
 
 .color-swatch {
@@ -495,9 +550,7 @@ code {
 .member-map-icon {
   display: grid;
   place-items: center;
-  border-radius: 50%;
   background: transparent;
-  color: #fff;
 }
 
 .member-map-icon span,
@@ -506,10 +559,9 @@ code {
   place-items: center;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  color: #fff;
-  border: 2px solid #fff;
-  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.25);
+  font-size: 1.75rem;
+  line-height: 1;
+  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.9), 0 2px 5px rgba(20, 33, 45, 0.35);
 }
 
 .member-map-icon.faded {
@@ -525,14 +577,15 @@ code {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.92);
+  border: 3px solid #2f81f7;
+  box-shadow: 0 0 0 2px #fff, 0 4px 12px rgba(9, 105, 218, 0.35);
 }
 
 .own-map-icon span {
-  width: 38px;
-  height: 38px;
-  border: 4px solid #2f81f7;
-  box-shadow: 0 0 0 2px #fff, 0 4px 12px rgba(9, 105, 218, 0.35);
+  width: 32px;
+  height: 32px;
+  font-size: 1.7rem;
 }
 
 .chat-layout {
@@ -601,10 +654,8 @@ code {
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: 50%;
-  color: #fff;
-  border: 2px solid #fff;
-  box-shadow: 0 2px 6px rgba(20, 33, 45, 0.16);
+  font-size: 1.35rem;
+  line-height: 1;
   flex: 0 0 auto;
 }
 

@@ -1,7 +1,7 @@
 import { requireSupabase } from './supabase.js';
 import { appState } from './state.js';
 import { isApprovedMember } from './groups.js';
-import { el, formatTime, friendlyError, icon, memberColor, memberName, memberShowsAlias, memberSymbol, renderIcons, setView, showToast } from './ui.js';
+import { el, formatTime, friendlyError, icon, memberColor, memberName, memberShowsAlias, memberSymbol, memberSymbolId, renderIcons, setView, showToast, symbolNode } from './ui.js';
 
 let chatChannel = null;
 let answerChannel = null;
@@ -117,7 +117,7 @@ function renderMessage(message) {
   return el('article', { className: `message message-${message.type} ${own ? 'own-message' : ''}` }, [
     el('div', { className: 'message-body' }, [
       el('div', { className: 'message-meta' }, [
-        el('span', { className: 'message-inline-symbol', text: memberSymbol(message.user_id), style: `background: ${memberColor(message.user_id)}` }),
+        Object.assign(symbolNode(memberSymbolId(message.user_id), 'message-inline-symbol'), { style: `color: ${memberColor(message.user_id)}` }),
         showAlias ? el('strong', { text: memberName(message.user_id) }) : null,
         el('time', { text: formatTime(message.created_at) }),
       ]),
@@ -151,7 +151,7 @@ function renderQuestionMessage(message) {
   return el('article', { className: `message question-card ${own ? 'own-message' : ''}` }, [
     el('div', { className: 'message-body stack' }, [
       el('div', { className: 'message-meta' }, [
-        el('span', { className: 'message-inline-symbol', text: memberSymbol(message.user_id), style: `background: ${memberColor(message.user_id)}` }),
+        Object.assign(symbolNode(memberSymbolId(message.user_id), 'message-inline-symbol'), { style: `color: ${memberColor(message.user_id)}` }),
         showAlias ? el('strong', { text: memberName(message.user_id) }) : null,
         el('time', { text: formatTime(message.created_at) }),
       ]),

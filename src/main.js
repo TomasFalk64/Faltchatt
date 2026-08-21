@@ -3,7 +3,7 @@ import { isSupabaseConfigured } from './supabase.js';
 import { initAuth, renderAuth, renderProfile, setAuthChangeHandler } from './auth.js';
 import { loadGroups, loadMembers, renderGroups } from './groups.js';
 import { loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
-import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, subscribeLocations, unsubscribeLocations } from './map.js';
+import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, startSharing, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
 import { appState, setActiveGroupId } from './state.js';
 import { renderAppShell, renderIcons, setSessionPill, setView, showToast } from './ui.js';
 
@@ -30,6 +30,7 @@ async function reloadAll() {
       appState.members = [];
       appState.messages = [];
       appState.locations = [];
+      stopSharing();
       renderAll();
       return;
     }
@@ -48,6 +49,7 @@ async function reloadAll() {
       await refreshMapLayers();
     });
     renderAll();
+    if (appState.locationSharingEnabled) startSharing();
   } catch (error) {
     console.error(error);
     showToast('Något gick fel vid laddning. Kontrollera nätverk och Supabase-inställningar.', 'error');

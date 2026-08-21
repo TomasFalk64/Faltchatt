@@ -26,6 +26,38 @@ export function icon(name, label) {
   return node;
 }
 
+export function symbolNode(symbolId, className = 'symbol-svg') {
+  const symbol = getSymbol(symbolId);
+  const svgMarkup = symbolSvg(symbol.id);
+  if (!svgMarkup) return el('span', { className, text: symbol.glyph, title: symbol.label });
+  const wrapper = el('span', { className, title: symbol.label, html: svgMarkup });
+  wrapper.setAttribute('aria-label', symbol.label);
+  return wrapper;
+}
+
+export function symbolMarkup(symbolId) {
+  const symbol = getSymbol(symbolId);
+  return symbolSvg(symbol.id) || `<span>${escapeHtml(symbol.glyph)}</span>`;
+}
+
+function symbolSvg(id) {
+  const common = 'viewBox="0 0 32 32" aria-hidden="true" focusable="false"';
+  const svgs = {
+    hat: `<svg ${common}><path fill="currentColor" d="M9 17c.8-5.7 2.8-8.5 7-8.5s6.2 2.8 7 8.5h3.2c1.4 0 2.3.9 2.3 2.1 0 3-5.7 4.9-12.5 4.9S3.5 22.1 3.5 19.1c0-1.2.9-2.1 2.3-2.1H9Zm2.6 0h8.8c-.7-4-1.9-5.9-4.4-5.9s-3.7 1.9-4.4 5.9Zm-4.5 2.4c1.6 1.2 4.8 2 8.9 2s7.3-.8 8.9-2H7.1Z"/></svg>`,
+    tree: `<svg ${common}><path fill="currentColor" d="M16 3 7 15h5l-6 8h8v6h4v-6h8l-6-8h5L16 3Z"/></svg>`,
+    leaf: `<svg ${common}><path fill="currentColor" d="M27 5C15.5 4.7 7.4 10 6.4 18.7c-.4 3.6 1.6 6.3 4.8 7.1 4.7 1.1 10.5-2.9 12.7-9.2C25.1 13 26 8.8 27 5Zm-4.7 4.1C18 16.9 14.3 21 9 24.4l-1.2-2c5-3.1 8.5-7 12.5-14l2 1.1Z"/></svg>`,
+    train: `<svg ${common}><path fill="currentColor" d="M5 17.5h2.2v-5.2h3.2V7.7H14v4.6h3.1c1 0 1.9.5 2.5 1.3l2.6 3.9H27v4.2h-2.1a4.2 4.2 0 0 1-8.1 0h-2.7a4.2 4.2 0 0 1-8.1 0H4.2v-2.4c0-1 .8-1.8 1.8-1.8Zm7.6-7.5v2.3H15V10h-2.4Zm6.4 5 1.7 2.5h-2.9V15H19ZM8.1 21.7a2 2 0 1 0 4 0 2 2 0 0 0-4 0Zm10.8 0a2 2 0 1 0 4 0 2 2 0 0 0-4 0Zm-10.3 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm10.8 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Z"/><path fill="currentColor" d="M9 6h3v2H9V6Zm-1.4 4.5h1.7v2.2H7.6v-2.2Z"/></svg>`,
+    car: `<svg ${common}><path fill="currentColor" d="M9.2 9h13.6l3 6.1c1.3.5 2.2 1.7 2.2 3.2v4.2h-3V25h-4v-2.5H11V25H7v-2.5H4v-4.2c0-1.5.9-2.8 2.2-3.2L9.2 9Zm2 2.8-1.7 3.5h13l-1.7-3.5h-9.6ZM9 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm14 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>`,
+  };
+  return svgs[id] || null;
+}
+
+function escapeHtml(value) {
+  const div = document.createElement('div');
+  div.textContent = String(value);
+  return div.innerHTML;
+}
+
 export function renderIcons() {
   createIcons({ icons });
 }
@@ -84,8 +116,13 @@ export function memberName(userId) {
 }
 
 export function memberSymbol(userId) {
+  return getSymbol(memberSymbolId(userId)).glyph;
+}
+
+export function memberSymbolId(userId) {
   const member = appState.members.find((item) => item.user_id === userId);
-  return getSymbol(member?.profiles?.symbol || member?.profile?.symbol || 'circle').glyph;
+  if (userId === appState.user?.id) return appState.profile?.symbol || 'hat';
+  return member?.profiles?.symbol || member?.profile?.symbol || 'hat';
 }
 
 export function memberColor(userId) {

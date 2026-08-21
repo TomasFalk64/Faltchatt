@@ -1,11 +1,11 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { appState, getSymbol } from './state.js';
+import { appState } from './state.js';
 import { canAdminGroup, isApprovedMember } from './groups.js';
 import { sendMessage } from './chat.js';
 import { loadGeoTiffLayer, removeGeoTiffLayer, setGeoTiffOpacity, uploadGroupGeoTiff } from './geotiff.js';
 import { requireSupabase } from './supabase.js';
-import { el, formatRelative, friendlyError, icon, memberColor, memberName, memberShowsAlias, renderIcons, showToast } from './ui.js';
+import { el, formatRelative, friendlyError, icon, logEvent, memberColor, memberName, memberShowsAlias, memberSymbolId, renderIcons, showToast, symbolMarkup } from './ui.js';
 
 let map;
 let ownMarker;
@@ -14,6 +14,7 @@ let sentLocationsLayer;
 let locationChannel;
 let watchId;
 let lastSent = { at: 0, lat: null, lng: null };
+let lastPositionLogAt = 0;
 let geotiffOpacity = 0.8;
 
 export async function loadLocations() {
@@ -140,18 +141,18 @@ export async function refreshMapLayers() {
 function memberIcon(userId, updatedAt) {
   const minutes = (Date.now() - new Date(updatedAt).getTime()) / 60000;
   const ageClass = minutes > 10 ? 'old' : minutes > 2 ? 'faded' : 'fresh';
-  const member = appState.members.find((item) => item.user_id === userId);
-  const symbol = getSymbol(member?.profiles?.symbol || 'circle').glyph;
+  const symbol = memberSymbolId(userId);
   const color = memberColor(userId);
   return L.divIcon({
     className: `member-map-icon ${ageClass}`,
-    html: `<span style="background:${escapeHtml(color)}">${escapeHtml(symbol)}</span>`,
+    html: `<span style="color:${escapeHtml(color)}">${symbolMarkup(symbol)}</span>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
   });
 }
 
 export function startSharing() {
+  if (watchId) return;
   if (!navigator.geolocation) {
     showToast('GPS stöds inte av webbläsaren.', 'error');
     return;
@@ -170,6 +171,10 @@ export function stopSharing() {
 
 async function handlePosition(position) {
   const { latitude, longitude, accuracy, heading, speed } = position.coords;
+  if (Date.now() - lastPositionLogAt > 30000) {
+    lastPositionLogAt = Date.now();
+    logEvent(`GPS WGS84: lat ${latitude.toFixed(6)}, lon ${longitude.toFixed(6)}, noggrannhet ±${Math.round(accuracy || 0)} m.`, 'info');
+  }
   if (map && !ownMarker) map.setView([latitude, longitude], 15);
   if (ownMarker) ownMarker.setLatLng([latitude, longitude]);
   else ownMarker = L.marker([latitude, longitude], { icon: ownPositionIcon() }).addTo(map);
@@ -262,11 +267,11 @@ function escapeHtml(value) {
 }
 
 function ownPositionIcon() {
-  const symbol = getSymbol(appState.profile?.symbol || 'circle').glyph;
+  const symbol = appState.profile?.symbol || 'hat';
   const color = appState.profile?.symbol_color || '#17324d';
   return L.divIcon({
     className: 'own-map-icon',
-    html: `<span style="background:${escapeHtml(color)}">${escapeHtml(symbol)}</span>`,
+    html: `<span style="color:${escapeHtml(color)}">${symbolMarkup(symbol)}</span>`,
     iconSize: [38, 38],
     iconAnchor: [19, 19],
   });

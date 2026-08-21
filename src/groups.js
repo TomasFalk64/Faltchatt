@@ -1,6 +1,6 @@
 import { requireSupabase } from './supabase.js';
 import { appState, setActiveGroupId } from './state.js';
-import { el, friendlyError, icon, renderIcons, showToast } from './ui.js';
+import { el, friendlyError, icon, renderIcons, showToast, symbolNode } from './ui.js';
 
 export function isApprovedMember() {
   return appState.memberships.some((member) => member.group_id === appState.activeGroupId && member.status === 'approved');
@@ -155,7 +155,7 @@ function memberList(onChanged) {
     const profile = member.profiles || {};
     list.append(
       el('div', { className: `member-row status-${member.status}` }, [
-        el('span', { className: 'member-symbol', text: profile.symbol ? profileSymbol(profile.symbol) : '●', style: `background: ${profile.symbol_color || '#17324d'}` }),
+        Object.assign(symbolNode(profile.symbol || 'hat', 'member-symbol'), { style: `color: ${profile.symbol_color || '#17324d'}` }),
         el('div', { className: 'member-main' }, [
           el('strong', { text: profile.alias || 'Okänd' }),
           el('small', { text: `${member.role} · ${member.status}` }),
@@ -173,11 +173,6 @@ function memberList(onChanged) {
     );
   });
   return list;
-}
-
-function profileSymbol(symbol) {
-  const map = { circle: '●', triangle: '▲', square: '■', star: '★', tree: '♣', binoculars: '◆' };
-  return map[symbol] || '●';
 }
 
 function actionButton(iconName, label, handler) {
