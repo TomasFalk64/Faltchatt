@@ -2,6 +2,7 @@ export const SYMBOLS = [
   { id: 'hat', label: 'Hatt', glyph: 'hat' },
   { id: 'tree', label: 'Träd', glyph: 'tree' },
   { id: 'leaf', label: 'Löv', glyph: 'leaf' },
+  { id: 'mushroom', label: 'Svamp', glyph: 'mushroom' },
   { id: 'star', label: 'Stjärna', glyph: '★' },
   { id: 'spade', label: 'Spader', glyph: '♠' },
   { id: 'heart', label: 'Hjärta', glyph: '♥' },

@@ -41,8 +41,9 @@ async function reloadAll() {
     }
     await Promise.all([loadChatData(), loadLocations()]);
     subscribeChat(async () => {
+      const beforeLocations = locationMessageSignature();
       await refreshChatMessages();
-      await refreshMapLayers();
+      if (locationMessageSignature() !== beforeLocations) await refreshMapLayers();
     });
     subscribeLocations(async () => {
       await loadLocations();
@@ -55,6 +56,13 @@ async function reloadAll() {
     showToast('Något gick fel vid laddning. Kontrollera nätverk och Supabase-inställningar.', 'error');
     renderAll();
   }
+}
+
+function locationMessageSignature() {
+  return appState.messages
+    .filter((message) => message.type === 'location' && message.latitude && message.longitude)
+    .map((message) => `${message.id}:${message.latitude}:${message.longitude}:${message.text}`)
+    .join('|');
 }
 
 function renderAll() {

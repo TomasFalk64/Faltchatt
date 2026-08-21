@@ -29,6 +29,7 @@ Om du använder SQL Editor i Dashboard, kör filerna i denna ordning:
 7. `supabase/migrations/007_profile_symbol_color_alias.sql`
 8. `supabase/migrations/008_profile_symbol_choices.sql`
 9. `supabase/migrations/009_profile_symbol_final_set.sql`
+10. `supabase/migrations/010_add_mushroom_symbol.sql`
 
 ## 3. Authentication
 

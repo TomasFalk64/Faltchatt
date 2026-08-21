@@ -1,7 +1,7 @@
 import { requireSupabase } from './supabase.js';
 import { appState } from './state.js';
 import { isApprovedMember } from './groups.js';
-import { el, formatTime, friendlyError, icon, memberColor, memberName, memberShowsAlias, memberSymbol, memberSymbolId, renderIcons, setView, showToast, symbolNode } from './ui.js';
+import { el, formatTime, friendlyError, icon, memberColor, memberName, memberShowsAlias, memberSymbol, memberSymbolId, renderIcons, showToast, symbolNode } from './ui.js';
 
 let chatChannel = null;
 let answerChannel = null;
@@ -128,8 +128,7 @@ function renderMessage(message) {
             {
               className: 'link-button',
               onClick: () => {
-                appState.mapTarget = { latitude: message.latitude, longitude: message.longitude, text: message.text };
-                setView('map');
+                appState.mapTarget = { messageId: message.id, latitude: message.latitude, longitude: message.longitude, text: message.text };
                 window.dispatchEvent(new CustomEvent('faltchatt:focus-location'));
               },
             },
