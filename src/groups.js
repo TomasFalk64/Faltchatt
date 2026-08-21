@@ -2,6 +2,9 @@ import { requireSupabase } from './supabase.js';
 import { appState, setActiveGroupId } from './state.js';
 import { el, friendlyError, icon, renderIcons, showToast, symbolNode } from './ui.js';
 
+let groupChannel = null;
+let groupRefreshTimer = null;
+
 export function isApprovedMember() {
   return appState.memberships.some((member) => member.group_id === appState.activeGroupId && member.status === 'approved');
 }
@@ -45,11 +48,28 @@ export async function loadMembers() {
   if (!appState.activeGroupId) return;
   const { data, error } = await requireSupabase()
     .from('group_members')
-    .select('*, profiles(id, alias, symbol, symbol_color, show_alias, phone)')
+    .select('*, profiles(id, alias, symbol, symbol_color, show_alias, email, phone)')
     .eq('group_id', appState.activeGroupId)
     .order('created_at', { ascending: true });
   if (error) throw error;
   appState.members = data || [];
+}
+
+export function subscribeGroups(onChanged) {
+  unsubscribeGroups();
+  if (!appState.user) return;
+  groupChannel = requireSupabase()
+    .channel('group-memberships')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, onChanged)
+    .subscribe();
+  groupRefreshTimer = window.setInterval(onChanged, 3000);
+}
+
+export function unsubscribeGroups() {
+  if (groupChannel) requireSupabase().removeChannel(groupChannel);
+  groupChannel = null;
+  if (groupRefreshTimer) window.clearInterval(groupRefreshTimer);
+  groupRefreshTimer = null;
 }
 
 export function renderGroups(onChanged = async () => {}) {
@@ -68,7 +88,7 @@ export function renderGroups(onChanged = async () => {}) {
     [
       el('option', { value: '', text: 'Ingen grupp vald' }),
       ...appState.memberships.map((membership) =>
-        el('option', { value: membership.group_id, text: `${membership.groups?.name || 'Grupp'} (${membership.status})` }),
+        el('option', { value: membership.group_id, text: `${membership.groups?.name || `Grupp ${membership.group_id.slice(0, 8)}`} (${membership.status})` }),
       ),
     ],
   );
@@ -106,9 +126,9 @@ function createGroupForm(onChanged) {
     event.preventDefault();
     if (!input.value.trim()) return;
     try {
-      const { data, error } = await requireSupabase().rpc('create_group_with_owner', { group_name: input.value.trim() });
+      const { error } = await requireSupabase().rpc('create_group_with_owner', { group_name: input.value.trim() });
       if (error) throw error;
-      setActiveGroupId(data);
+      input.value = '';
       showToast('Gruppen skapades.', 'success');
       await onChanged();
     } catch (error) {
@@ -153,11 +173,12 @@ function memberList(onChanged) {
   const list = el('div', { className: 'member-list' });
   appState.members.forEach((member) => {
     const profile = member.profiles || {};
+    const label = profile.alias || profile.email || profile.phone || `Användare ${member.user_id.slice(0, 8)}`;
     list.append(
       el('div', { className: `member-row status-${member.status}` }, [
         Object.assign(symbolNode(profile.symbol || 'hat', 'member-symbol'), { style: `color: ${profile.symbol_color || '#17324d'}` }),
         el('div', { className: 'member-main' }, [
-          el('strong', { text: profile.alias || 'Okänd' }),
+          el('strong', { text: label }),
           el('small', { text: `${member.role} · ${member.status}` }),
         ]),
         admin && member.status === 'pending'

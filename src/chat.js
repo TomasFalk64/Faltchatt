@@ -1,11 +1,20 @@
 import { requireSupabase } from './supabase.js';
 import { appState } from './state.js';
 import { isApprovedMember } from './groups.js';
-import { el, formatTime, friendlyError, icon, memberColor, memberName, memberShowsAlias, memberSymbol, memberSymbolId, renderIcons, showToast, symbolNode } from './ui.js';
+import { el, formatTime, friendlyError, icon, memberColor, memberName, memberShowsAlias, memberSymbol, memberSymbolId, renderIcons, showToast, symbolNode, updateNavBadges } from './ui.js';
 
 let chatChannel = null;
 let answerChannel = null;
 let chatRefreshTimer = null;
+const messageSound = new Audio('/data/golgroda.mp3');
+let soundUnlocked = false;
+
+messageSound.preload = 'auto';
+messageSound.volume = 0.75;
+
+['pointerdown', 'keydown'].forEach((eventName) => {
+  document.addEventListener(eventName, unlockMessageSound, { once: true });
+});
 
 export async function loadChatData() {
   if (!appState.activeGroupId || !isApprovedMember()) {
@@ -75,16 +84,54 @@ export function renderChat() {
   }
   const list = el('div', { id: 'chat-message-list', className: 'message-list' }, appState.messages.map((message) => renderMessage(message)));
   list.dataset.signature = chatSignature();
+  list.addEventListener('scroll', () => updateChatReadState(list));
   view.append(el('div', { className: 'chat-layout sidebar-chat' }, [list, composer()]));
   queueMicrotask(() => {
-    list.scrollTop = list.scrollHeight;
+    scrollMessageListToBottom(list);
     renderIcons();
   });
 }
 
 export async function refreshChatMessages() {
+  const previousIds = new Set(appState.messages.map((message) => message.id));
   await loadChatData();
+  notifyForNewMessages(previousIds);
   renderMessageList();
+}
+
+function notifyForNewMessages(previousIds) {
+  const hasNewFromOther = appState.messages.some((message) => !previousIds.has(message.id) && message.user_id !== appState.user?.id);
+  if (!hasNewFromOther) return;
+  const list = document.querySelector('#chat-message-list');
+  const nearBottom = list ? list.scrollHeight - list.scrollTop - list.clientHeight < 120 : false;
+  if (appState.selectedView !== 'chat' || !nearBottom) {
+    appState.unreadChat = true;
+    updateNavBadges();
+  }
+  playMessageSound();
+}
+
+async function unlockMessageSound() {
+  try {
+    messageSound.muted = true;
+    await messageSound.play();
+    messageSound.pause();
+    messageSound.currentTime = 0;
+    messageSound.muted = false;
+    soundUnlocked = true;
+  } catch {
+    soundUnlocked = false;
+  }
+}
+
+function playMessageSound() {
+  if (!soundUnlocked) return;
+  try {
+    messageSound.currentTime = 0;
+    messageSound.play().catch(() => {});
+  } catch {
+    // Browser audio policies can still block sound until the page has been interacted with.
+  }
 }
 
 function renderMessageList() {
@@ -98,8 +145,26 @@ function renderMessageList() {
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 120;
   list.replaceChildren(...appState.messages.map((message) => renderMessage(message)));
   list.dataset.signature = signature;
-  if (nearBottom) list.scrollTop = list.scrollHeight;
+  if (nearBottom) scrollMessageListToBottom(list);
+  updateChatReadState(list);
   renderIcons();
+}
+
+function updateChatReadState(list) {
+  const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 24;
+  if (appState.selectedView === 'chat' && atBottom) {
+    appState.unreadChat = false;
+    updateNavBadges();
+  }
+}
+
+function scrollMessageListToBottom(list) {
+  requestAnimationFrame(() => {
+    list.scrollTop = list.scrollHeight;
+    requestAnimationFrame(() => {
+      list.scrollTop = list.scrollHeight;
+    });
+  });
 }
 
 function chatSignature() {

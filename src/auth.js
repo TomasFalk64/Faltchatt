@@ -90,10 +90,14 @@ function authForm() {
           ? await client.auth.signUp(credentials)
           : await client.auth.signInWithPassword(credentials);
       if (result.error) throw result.error;
-      showToast(mode.value === 'signup' ? 'Kontot är skapat. Kontrollera e-post om bekräftelse krävs.' : 'Du är inloggad.', 'success');
+      if (mode.value === 'signup' && result.data?.user && Array.isArray(result.data.user.identities) && result.data.user.identities.length === 0) {
+        showToast('Det finns redan ett konto med den e-postadressen. Logga in eller återställ lösenordet.', 'warning');
+        return;
+      }
+      showToast(mode.value === 'signup' ? 'Det har skickats mail till e-postadressen du angav. Bekräfta i mailet för att kunna logga in.' : 'Du är inloggad.', 'success');
     } catch (error) {
       console.error(error);
-      showToast('Inloggningen misslyckades. Kontrollera uppgifterna.', 'error');
+      showToast(mode.value === 'signup' ? 'Kunde inte skapa konto. Kontrollera e-postadressen.' : 'Inloggningen misslyckades. Kontrollera uppgifterna.', 'error');
     }
   };
   const resetPassword = async () => {

@@ -146,7 +146,23 @@ export function setView(view) {
   document.querySelectorAll('.nav-button').forEach((node) => {
     node.classList.toggle('active', node.dataset.view === view);
   });
+  if (view === 'chat') appState.unreadChat = false;
+  updateNavBadges();
   window.dispatchEvent(new CustomEvent('faltchatt:map-visible'));
+}
+
+export function updateNavBadges() {
+  const hasPendingMembers = appState.members.some((member) => member.status === 'pending');
+  const activeMembership = appState.memberships.find((member) => member.group_id === appState.activeGroupId);
+  const ownMembershipPending = activeMembership?.status === 'pending';
+  setNavBadge('group', hasPendingMembers);
+  setNavBadge('map', ownMembershipPending);
+  setNavBadge('chat', appState.unreadChat);
+}
+
+function setNavBadge(view, visible) {
+  const button = document.querySelector(`.nav-button[data-view="${view}"]`);
+  button?.classList.toggle('has-badge', Boolean(visible));
 }
 
 export function renderAppShell() {
@@ -200,7 +216,7 @@ export function renderAppShell() {
 }
 
 function navButton(iconName, text, view) {
-  return el('button', { className: 'nav-button', 'data-view': view, onClick: () => setView(view) }, [icon(iconName, text), el('span', { text })]);
+  return el('button', { className: 'nav-button', 'data-view': view, onClick: () => setView(view) }, [icon(iconName, text), el('span', { text }), el('i', { className: 'nav-badge', 'aria-hidden': 'true' })]);
 }
 
 export function setSessionPill() {

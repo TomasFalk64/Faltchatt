@@ -39,6 +39,7 @@ export const appState = {
   selectedView: 'profile',
   pendingMapMessage: null,
   mapTarget: null,
+  unreadChat: false,
 };
 
 export function setLocationSharingEnabled(enabled) {

@@ -1,11 +1,11 @@
 import './styles.css';
 import { isSupabaseConfigured } from './supabase.js';
 import { initAuth, renderAuth, renderProfile, setAuthChangeHandler } from './auth.js';
-import { loadGroups, loadMembers, renderGroups } from './groups.js';
+import { loadGroups, loadMembers, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
 import { loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
 import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, startSharing, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
 import { appState, setActiveGroupId } from './state.js';
-import { renderAppShell, renderIcons, setSessionPill, setView, showToast } from './ui.js';
+import { renderAppShell, renderIcons, setSessionPill, setView, showToast, updateNavBadges } from './ui.js';
 
 async function bootstrap() {
   renderAppShell();
@@ -24,6 +24,7 @@ async function reloadAll() {
   try {
     unsubscribeChat();
     unsubscribeLocations();
+    unsubscribeGroups();
     if (!appState.user) {
       appState.activeGroup = null;
       appState.memberships = [];
@@ -49,6 +50,7 @@ async function reloadAll() {
       await loadLocations();
       await refreshMapLayers();
     });
+    subscribeGroups(refreshGroupsIfChanged);
     renderAll();
     if (appState.locationSharingEnabled) startSharing();
   } catch (error) {
@@ -56,6 +58,23 @@ async function reloadAll() {
     showToast('Något gick fel vid laddning. Kontrollera nätverk och Supabase-inställningar.', 'error');
     renderAll();
   }
+}
+
+async function refreshGroupsIfChanged() {
+  const before = groupStateSignature();
+  await loadGroups();
+  if (groupStateSignature() === before) return;
+  await Promise.all([loadChatData(), loadLocations()]);
+  renderAll();
+}
+
+function groupStateSignature() {
+  return [
+    appState.activeGroupId || '',
+    appState.activeGroup?.name || '',
+    appState.memberships.map((member) => `${member.id}:${member.group_id}:${member.groups?.name || ''}:${member.role}:${member.status}`).join('|'),
+    appState.members.map((member) => `${member.id}:${member.user_id}:${member.role}:${member.status}:${member.profiles?.alias || ''}:${member.profiles?.email || ''}`).join('|'),
+  ].join('::');
 }
 
 function locationMessageSignature() {
@@ -79,6 +98,7 @@ function renderAll() {
   renderMapControls(reloadAll);
   renderChat();
   setView(appState.user ? appState.selectedView : 'profile');
+  updateNavBadges();
   renderIcons();
 }
 

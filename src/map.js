@@ -54,6 +54,14 @@ export async function renderMapView(onChanged) {
   view.append(
     el('div', { className: 'map-layout' }, [
       mapNode,
+      el('div', { id: 'map-coordinate-readout', className: 'map-coordinate-readout', text: '' }),
+      el('button', {
+        type: 'button',
+        className: 'map-position-check-button',
+        title: 'kontrollera position nu',
+        'aria-label': 'kontrollera position nu',
+        onClick: checkPositionNow,
+      }, ['↻']),
       el('div', { id: 'map-send-panel', className: 'map-send-panel', hidden: true }),
     ]),
   );
@@ -68,7 +76,12 @@ export function renderMapControls(onChanged) {
   view.innerHTML = '';
 
   const opacity = el('input', { type: 'range', min: '0', max: '100', value: String(Math.round(geotiffOpacity * 100)) });
-  const upload = el('input', { type: 'file', accept: '.tif,.tiff,image/tiff' });
+  const upload = el('input', { type: 'file', accept: '.tif,.tiff,image/tiff', className: 'visually-hidden-file' });
+  const uploadButton = el('button', {
+    type: 'button',
+    className: 'secondary',
+    onClick: () => upload.click(),
+  }, [icon('upload', 'Ladda upp'), 'Ladda upp GeoTIFF']);
   opacity.addEventListener('input', () => {
     geotiffOpacity = Number(opacity.value) / 100;
     setGeoTiffOpacity(geotiffOpacity);
@@ -95,9 +108,9 @@ export function renderMapControls(onChanged) {
     el('div', { className: 'page sidebar-page' }, [
       el('section', { className: 'panel stack' }, [
         el('h2', { text: 'Karta' }),
-        el('p', { className: 'muted', text: hasApprovedGroup ? 'OpenStreetMap visas alltid. Gruppkartan visas om en GeoTIFF finns.' : 'OpenStreetMap visas även utan grupp. Gruppkarta och platsmeddelanden kräver godkänd grupp.' }),
+        el('p', { className: 'muted', text: hasApprovedGroup ? 'OpenStreetMap visas alltid. Gruppkartor visas om de laddas upp.' : 'OpenStreetMap visas även utan grupp. Gruppkarta och platsmeddelanden kräver godkänd grupp.' }),
         el('label', {}, ['GeoTIFF opacitet', opacity]),
-        canAdminGroup() ? el('label', {}, ['Ladda upp GeoTIFF', upload]) : null,
+        canAdminGroup() ? el('div', { className: 'upload-control' }, [upload, uploadButton]) : null,
         mapList,
       ]),
     ]),
@@ -126,6 +139,7 @@ function initMap() {
   map.on('click', (event) => openSendLocationPanel(event.latlng));
   if (lastOwnPosition) {
     ownMarker = L.marker([lastOwnPosition.latitude, lastOwnPosition.longitude], { icon: ownPositionIcon() }).addTo(map);
+    bindMemberPopup(ownMarker, appState.user.id, () => lastOwnPosition);
   }
 }
 
@@ -142,8 +156,10 @@ export async function refreshMapLayers() {
   appState.locations.forEach((location) => {
     if (location.user_id === appState.user.id) return;
     const marker = L.marker([location.latitude, location.longitude], { icon: memberIcon(location.user_id, location.updated_at) });
-    const name = memberShowsAlias(location.user_id) ? `<strong>${escapeHtml(memberName(location.user_id))}</strong><br>` : '';
+    const name = '';
     marker.bindPopup(`${name}Senast uppdaterad: ${formatRelative(location.updated_at)}<br>Noggrannhet: ±${Math.round(location.accuracy || 0)} m`);
+    marker.bindPopup(memberPopup(location.user_id, location));
+    bindMemberPopup(marker, location.user_id, () => location);
     marker.addTo(membersLayer);
   });
   renderSentLocationMarkers();
@@ -271,6 +287,34 @@ function sentLocationPopup(message) {
   ]);
 }
 
+function memberPopup(userId, location) {
+  const profile = profileForUser(userId);
+  const updatedAt = location.updated_at || location.updatedAt;
+  return el('div', { className: 'member-popup' }, [
+    el('strong', { text: profile?.alias || memberName(userId) }),
+    profile?.email ? el('div', {}, [el('span', { text: 'E-post: ' }), el('a', { href: `mailto:${profile.email}`, text: profile.email })]) : null,
+    profile?.phone ? el('div', {}, [el('span', { text: 'Mobil: ' }), el('a', { href: `tel:${profile.phone}`, text: profile.phone })]) : null,
+    el('div', {}, [el('span', { text: 'Senast uppdaterad: ' }), el('span', { text: updatedAt ? formatRelative(updatedAt) : 'okänd tid' })]),
+    Number.isFinite(location.accuracy)
+      ? el('div', {}, [el('span', { text: 'Noggrannhet: ' }), el('span', { text: `±${Math.round(location.accuracy)} m` })])
+      : null,
+  ]);
+}
+
+function bindMemberPopup(marker, userId, getLocation) {
+  marker.bindPopup(memberPopup(userId, getLocation()));
+  marker.off('popupopen');
+  marker.on('popupopen', () => {
+    marker.setPopupContent(memberPopup(userId, getLocation()));
+  });
+}
+
+function profileForUser(userId) {
+  if (userId === appState.user?.id) return appState.profile;
+  const member = appState.members.find((item) => item.user_id === userId);
+  return member?.profiles || member?.profile || null;
+}
+
 function hideSentLocationMarker(messageId, marker) {
   hiddenSentLocationIds.add(messageId);
   marker.remove();
@@ -310,6 +354,33 @@ export function startSharing() {
   });
 }
 
+function checkPositionNow() {
+  if (!navigator.geolocation) {
+    showToast('GPS stöds inte av webbläsaren.', 'error');
+    return;
+  }
+  showToast('Kontrollerar position...', 'info');
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      try {
+        await handlePosition(position);
+        if (appState.activeGroupId && isApprovedMember()) await loadLocations();
+        await refreshMapLayers();
+        showToast('Positionen kontrollerades.', 'success');
+      } catch (error) {
+        console.error(error);
+        showToast(friendlyError(error, 'Kunde inte kontrollera positionen.'), 'error');
+      }
+    },
+    handlePositionError,
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 15000,
+    },
+  );
+}
+
 export function stopSharing() {
   if (watchId) navigator.geolocation.clearWatch(watchId);
   watchId = null;
@@ -332,6 +403,7 @@ async function handlePosition(position) {
   if (ownMarker) ownMarker.setLatLng([latitude, longitude]);
   else ownMarker = L.marker([latitude, longitude], { icon: ownPositionIcon() }).addTo(map);
   ownMarker.setIcon(ownPositionIcon());
+  bindMemberPopup(ownMarker, appState.user.id, () => lastOwnPosition);
 
   const moved = lastSent.lat === null || distanceMeters(lastSent.lat, lastSent.lng, latitude, longitude) > 15;
   const enoughTime = Date.now() - lastSent.at > 10000;
@@ -366,9 +438,10 @@ function handlePositionError(error) {
 
 function openSendLocationPanel(latlng) {
   if (!appState.activeGroupId || !isApprovedMember()) {
-    showToast('Välj en godkänd grupp för att skicka platser i chatten.', 'warning');
+    updateCoordinateReadout(latlng);
     return;
   }
+  updateCoordinateReadout(latlng);
   const panel = document.querySelector('#map-send-panel');
   const text = el('input', { value: 'Ses här om 20 min' });
   panel.innerHTML = '';
@@ -396,6 +469,12 @@ function openSendLocationPanel(latlng) {
     ]),
   );
   renderIcons();
+}
+
+function updateCoordinateReadout(latlng) {
+  const readout = document.querySelector('#map-coordinate-readout');
+  if (!readout) return;
+  readout.textContent = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
 }
 
 export function focusRequestedLocation() {
