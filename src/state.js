@@ -40,6 +40,7 @@ export const appState = {
   pendingMapMessage: null,
   mapTarget: null,
   unreadChat: false,
+  passwordRecovery: false,
 };
 
 export function setLocationSharingEnabled(enabled) {

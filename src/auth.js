@@ -11,13 +11,21 @@ export function setAuthChangeHandler(handler) {
 
 export async function initAuth() {
   if (!supabase) return;
+  if (isRecoveryUrl()) appState.passwordRecovery = true;
   const { data, error } = await supabase.auth.getSession();
   if (error) console.error(error);
   await applySession(data?.session || null);
-  supabase.auth.onAuthStateChange(async (_event, session) => {
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'PASSWORD_RECOVERY' || isRecoveryUrl()) appState.passwordRecovery = true;
     await applySession(session);
     await onAuthChanged();
   });
+}
+
+function isRecoveryUrl() {
+  const query = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  return query.get('type') === 'recovery' || hash.get('type') === 'recovery';
 }
 
 async function applySession(session) {
@@ -113,7 +121,7 @@ function authForm() {
       showToast('Länk för lösenordsåterställning skickad.', 'success');
     } catch (error) {
       console.error(error);
-      showToast('Kunde inte skicka återställningslänk.', 'error');
+      showToast(friendlyError(error, 'Kunde inte skicka återställningslänk.'), 'error');
     }
   };
   return el('form', { className: 'stack', onSubmit: submit }, [
@@ -207,6 +215,7 @@ export function renderProfile() {
   view.append(
     el('div', { className: 'page narrow' }, [
       el('h2', { text: 'Profil' }),
+      appState.passwordRecovery ? passwordRecoveryForm() : null,
       el('form', { className: 'panel stack', onSubmit: save }, [
         el('label', {}, ['Alias', alias]),
         el('fieldset', { className: 'symbol-picker' }, [el('legend', { text: 'Symbol' }), ...symbolButtons]),
@@ -222,4 +231,39 @@ export function renderProfile() {
     ]),
   );
   renderIcons();
+}
+
+function passwordRecoveryForm() {
+  const password = el('input', { type: 'password', placeholder: 'Nytt lösenord', autocomplete: 'new-password', required: true });
+  const repeat = el('input', { type: 'password', placeholder: 'Upprepa nytt lösenord', autocomplete: 'new-password', required: true });
+  const submit = async (event) => {
+    event.preventDefault();
+    if (password.value.length < 6) {
+      showToast('Lösenordet måste vara minst 6 tecken.', 'warning');
+      return;
+    }
+    if (password.value !== repeat.value) {
+      showToast('Lösenorden är inte lika.', 'warning');
+      return;
+    }
+    try {
+      const { error } = await requireSupabase().auth.updateUser({ password: password.value });
+      if (error) throw error;
+      appState.passwordRecovery = false;
+      password.value = '';
+      repeat.value = '';
+      showToast('Lösenordet har ändrats.', 'success');
+      renderProfile();
+    } catch (error) {
+      console.error(error);
+      showToast(friendlyError(error, 'Kunde inte ändra lösenordet.'), 'error');
+    }
+  };
+  return el('form', { className: 'panel stack', onSubmit: submit }, [
+    el('h3', { text: 'Välj nytt lösenord' }),
+    el('p', { className: 'muted', text: 'Du är inloggad via återställningslänken. Ange ett nytt lösenord för kontot.' }),
+    password,
+    repeat,
+    el('button', { className: 'primary', type: 'submit' }, [icon('key-round', 'Spara'), 'Spara nytt lösenord']),
+  ]);
 }
