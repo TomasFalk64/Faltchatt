@@ -87,8 +87,8 @@ function authForm() {
   let currentMode = 'signin';
   const submitButton = el('button', { className: 'primary', type: 'submit' }, [icon('log-in', 'Logga in'), 'Fortsätt']);
   const resetButton = el('button', { type: 'button', className: 'ghost', onClick: resetPassword }, [icon('key-round', 'Återställ'), 'Återställ lösenord']);
-  const signInTab = el('button', { type: 'button', className: 'auth-mode-button active', onClick: () => setMode('signin') }, 'Logga in');
-  const signUpTab = el('button', { type: 'button', className: 'auth-mode-button', onClick: () => setMode('signup') }, 'Skapa konto');
+  const signInTab = el('button', { type: 'button', className: 'auth-mode-button active', onClick: () => setMode('signin') }, ['Logga in']);
+  const signUpTab = el('button', { type: 'button', className: 'auth-mode-button', onClick: () => setMode('signup') }, ['Skapa konto']);
   const modeHint = el('p', { className: 'auth-mode-hint', text: 'Logga in med ditt befintliga konto.' });
 
   function setMode(nextMode) {
