@@ -5,7 +5,7 @@ import { canAdminGroup, isApprovedMember } from './groups.js';
 import { refreshChatMessages, sendMessage } from './chat.js';
 import { deleteGroupGeoTiff, listGroupGeoTiffs, loadGeoTiffLayers, removeGeoTiffLayers, setGeoTiffOpacity, uploadGroupGeoTiff } from './geotiff.js';
 import { requireSupabase } from './supabase.js';
-import { el, formatRelative, friendlyError, icon, logEvent, memberColor, memberName, memberShowsAlias, memberSymbolId, renderIcons, setView, showToast, symbolMarkup } from './ui.js';
+import { el, formatRelative, friendlyError, icon, logEvent, memberColor, memberName, memberSymbolId, renderIcons, setView, showToast, symbolMarkup } from './ui.js';
 
 let map;
 let ownMarker;
@@ -21,6 +21,7 @@ const hiddenSentLocationIds = new Set();
 let groupGeoTiffs = [];
 let groupGeoTiffsLoadedFor = null;
 let hiddenGeoTiffPaths = new Set();
+let hiddenSentLocationsLoadedFor = null;
 
 export async function loadLocations() {
   if (!appState.activeGroupId || !isApprovedMember()) {
@@ -54,7 +55,14 @@ export async function renderMapView(onChanged) {
   view.append(
     el('div', { className: 'map-layout' }, [
       mapNode,
-      el('div', { id: 'map-coordinate-readout', className: 'map-coordinate-readout', text: '' }),
+      el('button', {
+        id: 'map-coordinate-readout',
+        className: 'map-coordinate-readout',
+        type: 'button',
+        title: 'Kopiera koordinater',
+        'aria-label': 'Kopiera koordinater',
+        onClick: copyCoordinateReadout,
+      }),
       el('button', {
         type: 'button',
         className: 'map-position-check-button',
@@ -136,7 +144,8 @@ function initMap() {
   membersLayer = L.layerGroup().addTo(map);
   sentLocationsLayer = L.layerGroup().addTo(map);
   L.control.layers({ OpenStreetMap: osm }, { Gruppmedlemmar: membersLayer, 'Skickade platser': sentLocationsLayer }, { collapsed: true }).addTo(map);
-  map.on('click', (event) => openSendLocationPanel(event.latlng));
+  map.on('click', (event) => updateCoordinateReadout(event.latlng));
+  map.on('contextmenu', (event) => openSendLocationPanel(event.latlng));
   if (lastOwnPosition) {
     ownMarker = L.marker([lastOwnPosition.latitude, lastOwnPosition.longitude], { icon: ownPositionIcon() }).addTo(map);
     bindMemberPopup(ownMarker, appState.user.id, () => lastOwnPosition);
@@ -145,6 +154,11 @@ function initMap() {
 
 export async function refreshMapLayers() {
   if (!map) return;
+  if (ownMarker) {
+    ownMarker.setIcon(ownPositionIcon());
+    bindMemberPopup(ownMarker, appState.user.id, () => lastOwnPosition);
+  }
+  loadHiddenSentLocations();
   membersLayer.clearLayers();
   sentLocationsLayer.clearLayers();
   if (!appState.activeGroup || !isApprovedMember()) {
@@ -274,7 +288,7 @@ function renderSentLocationMarkers() {
   appState.messages
     .filter((message) => message.type === 'location' && message.latitude && message.longitude && !hiddenSentLocationIds.has(message.id))
     .forEach((message) => {
-      const marker = L.marker([message.latitude, message.longitude]);
+      const marker = L.marker([message.latitude, message.longitude], { icon: sentLocationIcon() });
       marker.bindPopup(sentLocationPopup(message), { autoClose: false, closeOnClick: false });
       marker.on('popupopen', () => bindSentLocationCloseButton(message.id, marker));
       marker.addTo(sentLocationsLayer);
@@ -317,6 +331,7 @@ function profileForUser(userId) {
 
 function hideSentLocationMarker(messageId, marker) {
   hiddenSentLocationIds.add(messageId);
+  saveHiddenSentLocations();
   marker.remove();
   showToast('Platsnålen doldes från kartan. Visa den igen från chatten.', 'info');
 }
@@ -328,6 +343,40 @@ function bindSentLocationCloseButton(messageId, marker) {
   closeButton.addEventListener('click', () => hideSentLocationMarker(messageId, marker), { once: true });
 }
 
+function sentLocationIcon() {
+  return L.divIcon({
+    className: 'sent-location-icon',
+    html: '<span aria-hidden="true"></span>',
+    iconSize: [22, 28],
+    iconAnchor: [11, 26],
+    popupAnchor: [0, -24],
+  });
+}
+
+function loadHiddenSentLocations() {
+  if (hiddenSentLocationsLoadedFor === appState.activeGroupId) return;
+  hiddenSentLocationIds.clear();
+  hiddenSentLocationsLoadedFor = appState.activeGroupId;
+  try {
+    JSON.parse(localStorage.getItem(sentLocationVisibilityKey()) || '[]').forEach((id) => hiddenSentLocationIds.add(id));
+  } catch {
+    hiddenSentLocationIds.clear();
+  }
+  const visibleIds = new Set(appState.messages.filter((message) => message.type === 'location').map((message) => message.id));
+  [...hiddenSentLocationIds].forEach((id) => {
+    if (!visibleIds.has(id)) hiddenSentLocationIds.delete(id);
+  });
+  saveHiddenSentLocations();
+}
+
+function saveHiddenSentLocations() {
+  localStorage.setItem(sentLocationVisibilityKey(), JSON.stringify([...hiddenSentLocationIds]));
+}
+
+function sentLocationVisibilityKey() {
+  return `faltchatt.hiddenSentLocations.${appState.activeGroupId || 'none'}`;
+}
+
 function memberIcon(userId, updatedAt) {
   const minutes = (Date.now() - new Date(updatedAt).getTime()) / 60000;
   const ageClass = minutes > 10 ? 'old' : minutes > 2 ? 'faded' : 'fresh';
@@ -336,8 +385,8 @@ function memberIcon(userId, updatedAt) {
   return L.divIcon({
     className: `member-map-icon ${ageClass}`,
     html: `<span style="color:${escapeHtml(color)}">${symbolMarkup(symbol)}</span>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
   });
 }
 
@@ -443,7 +492,7 @@ function openSendLocationPanel(latlng) {
   }
   updateCoordinateReadout(latlng);
   const panel = document.querySelector('#map-send-panel');
-  const text = el('input', { value: 'Ses här om 20 min' });
+  const text = el('input', { value: 'Ses här om 20 min', 'aria-label': 'Text' });
   panel.innerHTML = '';
   panel.hidden = false;
   panel.append(
@@ -460,12 +509,14 @@ function openSendLocationPanel(latlng) {
         showToast(friendlyError(error, 'Kunde inte skicka platsen.'), 'error');
       }
     } }, [
-      el('strong', { text: 'Skicka denna position till gruppen?' }),
-      el('label', {}, ['Text', text]),
-      el('div', { className: 'button-row' }, [
-        el('button', { type: 'button', className: 'ghost', onClick: () => { panel.hidden = true; } }, [icon('x', 'Avbryt'), 'Avbryt']),
-        el('button', { type: 'submit', className: 'primary' }, [icon('send', 'Skicka'), 'Skicka']),
+      el('div', { className: 'map-send-header' }, [
+        el('strong', { text: 'Skicka position?' }),
+        el('div', { className: 'map-send-actions' }, [
+          el('button', { type: 'button', className: 'map-send-cancel', title: 'Avbryt', 'aria-label': 'Avbryt', onClick: () => { panel.hidden = true; } }, [icon('x', 'Avbryt')]),
+          el('button', { type: 'submit', className: 'map-send-submit', title: 'Skicka', 'aria-label': 'Skicka' }, [icon('send', 'Skicka')]),
+        ]),
       ]),
+      text,
     ]),
   );
   renderIcons();
@@ -477,12 +528,26 @@ function updateCoordinateReadout(latlng) {
   readout.textContent = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
 }
 
+async function copyCoordinateReadout() {
+  const readout = document.querySelector('#map-coordinate-readout');
+  const value = readout?.textContent?.trim();
+  if (!value) return;
+  try {
+    await navigator.clipboard?.writeText(value);
+    showToast('Koordinater kopierade.', 'success');
+  } catch (error) {
+    console.error(error);
+    showToast('Kunde inte kopiera koordinater.', 'error');
+  }
+}
+
 export function focusRequestedLocation() {
   if (!map || !appState.mapTarget) return;
   const { messageId, latitude, longitude, text } = appState.mapTarget;
   appState.mapTarget = null;
   if (messageId) {
     hiddenSentLocationIds.delete(messageId);
+    saveHiddenSentLocations();
     renderSentLocationMarkers();
   }
   map.setView([latitude, longitude], 16);
@@ -510,8 +575,8 @@ function ownPositionIcon() {
   return L.divIcon({
     className: 'own-map-icon',
     html: `<span style="color:${escapeHtml(color)}">${symbolMarkup(symbol)}</span>`,
-    iconSize: [38, 38],
-    iconAnchor: [19, 19],
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
   });
 }
 

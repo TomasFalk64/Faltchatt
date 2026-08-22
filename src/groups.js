@@ -88,7 +88,7 @@ export function renderGroups(onChanged = async () => {}) {
     [
       el('option', { value: '', text: 'Ingen grupp vald' }),
       ...appState.memberships.map((membership) =>
-        el('option', { value: membership.group_id, text: `${membership.groups?.name || `Grupp ${membership.group_id.slice(0, 8)}`} (${membership.status})` }),
+        el('option', { value: membership.group_id, text: groupOptionText(membership) }),
       ),
     ],
   );
@@ -114,10 +114,21 @@ function activeGroupSummary() {
   const membership = appState.memberships.find((item) => item.group_id === appState.activeGroupId);
   return el('div', { className: 'group-summary' }, [
     el('strong', { text: appState.activeGroup.name }),
-    el('span', { text: `Roll: ${membership?.role || '-'} · Status: ${membership?.status || '-'}` }),
-    el('code', { text: appState.activeGroup.join_code }),
+    el('span', { text: membership?.status === 'approved' ? `Roll: ${membership?.role || '-'}` : `Roll: ${membership?.role || '-'} · ${membership?.status || '-'}` }),
+    el('div', { className: 'group-code-block' }, [
+      el('span', { text: 'Gruppkod' }),
+      el('code', {
+        text: appState.activeGroup.join_code,
+        title: 'Ge gruppkoden till personer som ska begära medlemskap i gruppen.',
+      }),
+    ]),
     membership?.status !== 'approved' ? el('p', { className: 'warning-text', text: 'Du väntar på godkännande innan karta och chatt öppnas.' }) : null,
   ]);
+}
+
+function groupOptionText(membership) {
+  const name = membership.groups?.name || `Grupp ${membership.group_id.slice(0, 8)}`;
+  return membership.status === 'approved' ? name : `${name} (${membership.status})`;
 }
 
 function createGroupForm(onChanged) {
@@ -179,16 +190,13 @@ function memberList(onChanged) {
         Object.assign(symbolNode(profile.symbol || 'hat', 'member-symbol'), { style: `color: ${profile.symbol_color || '#17324d'}` }),
         el('div', { className: 'member-main' }, [
           el('strong', { text: label }),
-          el('small', { text: `${member.role} · ${member.status}` }),
+          el('small', { text: member.status === 'approved' ? member.role : `${member.role} · ${member.status}` }),
         ]),
         admin && member.status === 'pending'
           ? el('div', { className: 'row-actions' }, [
               actionButton('check', 'Godkänn', () => updateMember(member.id, { status: 'approved', approved_at: new Date().toISOString() }, onChanged)),
               actionButton('x', 'Avvisa', () => updateMember(member.id, { status: 'rejected' }, onChanged)),
             ])
-          : null,
-        currentRole() === 'owner' && member.status === 'approved' && member.role === 'member'
-          ? actionButton('shield', 'Admin', () => updateMember(member.id, { role: 'admin' }, onChanged))
           : null,
       ]),
     );

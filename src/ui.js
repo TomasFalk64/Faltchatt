@@ -216,7 +216,7 @@ export function renderAppShell() {
 }
 
 function navButton(iconName, text, view) {
-  return el('button', { className: 'nav-button', 'data-view': view, onClick: () => setView(view) }, [icon(iconName, text), el('span', { text }), el('i', { className: 'nav-badge', 'aria-hidden': 'true' })]);
+  return el('button', { className: 'nav-button', 'data-view': view, title: text, 'aria-label': text, onClick: () => setView(view) }, [icon(iconName, text), el('span', { text }), el('i', { className: 'nav-badge', 'aria-hidden': 'true' })]);
 }
 
 export function setSessionPill() {

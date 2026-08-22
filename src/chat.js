@@ -177,16 +177,22 @@ function chatSignature() {
 function renderMessage(message) {
   if (message.type === 'question') return renderQuestionMessage(message);
   const location = message.type === 'location';
-  const showAlias = memberShowsAlias(message.user_id);
   const own = message.user_id === appState.user?.id;
+  const details = `${memberName(message.user_id)} ${formatTime(message.created_at)}`;
   return el('article', { className: `message message-${message.type} ${own ? 'own-message' : ''}` }, [
     el('div', { className: 'message-body' }, [
-      el('div', { className: 'message-meta' }, [
-        Object.assign(symbolNode(memberSymbolId(message.user_id), 'message-inline-symbol'), { style: `color: ${memberColor(message.user_id)}` }),
-        showAlias ? el('strong', { text: memberName(message.user_id) }) : null,
-        el('time', { text: formatTime(message.created_at) }),
+      el('div', { className: 'message-line' }, [
+        el('button', {
+          type: 'button',
+          className: 'message-symbol-button',
+          title: details,
+          'aria-label': details,
+          onClick: () => showToast(details, 'info'),
+        }, [
+          Object.assign(symbolNode(memberSymbolId(message.user_id), 'message-inline-symbol'), { style: `color: ${memberColor(message.user_id)}` }),
+        ]),
+        el('p', { text: location ? `Plats: ${message.text || 'Plats'}` : message.text }),
       ]),
-      el('p', { text: location ? `Plats: ${message.text || 'Plats'}` : message.text }),
       location
         ? el(
             'button',
@@ -210,16 +216,22 @@ function renderQuestionMessage(message) {
   const answers = appState.answers.filter((answer) => answer.question_id === question.id);
   const answeredIds = new Set(answers.map((answer) => answer.user_id));
   const approved = appState.members.filter((member) => member.status === 'approved');
-  const showAlias = memberShowsAlias(message.user_id);
   const own = message.user_id === appState.user?.id;
+  const details = `${memberName(message.user_id)} ${formatTime(message.created_at)}`;
   return el('article', { className: `message question-card ${own ? 'own-message' : ''}` }, [
     el('div', { className: 'message-body stack' }, [
-      el('div', { className: 'message-meta' }, [
-        Object.assign(symbolNode(memberSymbolId(message.user_id), 'message-inline-symbol'), { style: `color: ${memberColor(message.user_id)}` }),
-        showAlias ? el('strong', { text: memberName(message.user_id) }) : null,
-        el('time', { text: formatTime(message.created_at) }),
+      el('div', { className: 'message-line' }, [
+        el('button', {
+          type: 'button',
+          className: 'message-symbol-button',
+          title: details,
+          'aria-label': details,
+          onClick: () => showToast(details, 'info'),
+        }, [
+          Object.assign(symbolNode(memberSymbolId(message.user_id), 'message-inline-symbol'), { style: `color: ${memberColor(message.user_id)}` }),
+        ]),
+        el('h3', { text: question.question_text }),
       ]),
-      el('h3', { text: question.question_text }),
       el(
         'div',
         { className: 'option-grid' },

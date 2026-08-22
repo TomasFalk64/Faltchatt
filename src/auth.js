@@ -1,6 +1,6 @@
 import { requireSupabase, supabase } from './supabase.js';
 import { appState, setLocationSharingEnabled, SYMBOLS, SYMBOL_COLORS } from './state.js';
-import { startSharing, stopSharing } from './map.js';
+import { refreshMapLayers, startSharing, stopSharing } from './map.js';
 import { el, friendlyError, icon, renderIcons, setSessionPill, showToast, symbolNode } from './ui.js';
 
 let onAuthChanged = async () => {};
@@ -172,6 +172,7 @@ export function renderProfile() {
       if (error) throw error;
       appState.profile = data;
       setSessionPill();
+      await refreshMapLayers();
       showToast('Profilen sparades.', 'success');
     } catch (error) {
       console.error(error);
