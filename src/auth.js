@@ -57,7 +57,7 @@ export async function ensureProfile() {
   const alias = user.email?.split('@')[0] || 'Faltanvandare';
   const { data: created, error: createError } = await client
     .from('profiles')
-    .insert({ id: user.id, alias, symbol: SYMBOLS[0].id, symbol_color: SYMBOL_COLORS[0], show_alias: true, email: user.email })
+    .insert({ id: user.id, alias, symbol: SYMBOLS[0].id, symbol_color: SYMBOL_COLORS[0], show_alias: true, show_phone: true, email: user.email })
     .select('*')
     .single();
   if (createError) throw createError;
@@ -172,8 +172,10 @@ export function renderProfile() {
   let selectedSymbol = SYMBOLS.some((item) => item.id === appState.profile?.symbol) ? appState.profile.symbol : SYMBOLS[0].id;
   let selectedColor = appState.profile?.symbol_color || SYMBOL_COLORS[0];
   const showAlias = el('input', { type: 'checkbox' });
+  const showPhone = el('input', { type: 'checkbox' });
   const shareToggle = el('input', { type: 'checkbox', id: 'profile-share-location' });
   showAlias.checked = appState.profile?.show_alias !== false;
+  showPhone.checked = appState.profile?.show_phone !== false;
   shareToggle.checked = appState.locationSharingEnabled;
   shareToggle.addEventListener('change', () => {
     setLocationSharingEnabled(shareToggle.checked);
@@ -193,6 +195,7 @@ export function renderProfile() {
           symbol: selectedSymbol,
           symbol_color: selectedColor,
           show_alias: showAlias.checked,
+          show_phone: showPhone.checked,
           email: appState.user.email,
           updated_at: new Date().toISOString(),
         })
@@ -254,6 +257,7 @@ export function renderProfile() {
         el('label', {}, ['E-post', el('input', { value: appState.user.email || '', disabled: true })]),
         el('label', {}, ['Mobilnummer', phone]),
         el('label', { className: 'toggle-row' }, [showAlias, el('span', { text: 'Visa alias i chatt och kart-popup' })]),
+        el('label', { className: 'toggle-row' }, [showPhone, el('span', { text: 'Visa mobilnummer för gruppmedlemmar' })]),
         el('label', { className: 'toggle-row' }, [shareToggle, el('span', { text: 'Visa och dela min position' })]),
         el('button', { className: 'primary', type: 'submit' }, [icon('save', 'Spara'), 'Spara profil']),
         el('button', { className: 'ghost', type: 'button', onClick: () => requireSupabase().auth.signOut() }, [icon('log-out', 'Logga ut'), 'Logga ut']),

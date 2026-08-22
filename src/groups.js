@@ -52,7 +52,7 @@ export async function loadMembers() {
   if (!appState.activeGroupId) return;
   const { data, error } = await requireSupabase()
     .from('group_members')
-    .select('*, profiles(id, alias, symbol, symbol_color, show_alias, email, phone)')
+    .select('*, profiles(id, alias, symbol, symbol_color, show_alias, show_phone, email, phone)')
     .eq('group_id', appState.activeGroupId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -101,14 +101,20 @@ export function renderGroups(onChanged = async () => {}) {
   view.append(
     el('div', { className: 'page sidebar-page' }, [
       el('section', { className: 'panel stack' }, [
-        el('h2', { text: 'Grupp' }),
         el('label', { className: 'group-section-label' }, ['Aktuell grupp', groupSelect]),
         memberList(onChanged),
         activeGroupSummary(),
         createGroupForm(onChanged),
         joinGroupForm(onChanged),
       ]),
-      el('section', { className: 'panel stack' }, [el('h2', { text: 'Administration' }), clearChatControl(onChanged), deleteGroupControl(onChanged)]),
+      isGroupOwner()
+        ? el('section', { className: 'panel stack' }, [
+            el('h2', { text: 'Administration' }),
+            clearLocationPinsControl(onChanged),
+            clearChatControl(onChanged),
+            deleteGroupControl(onChanged),
+          ])
+        : null,
     ]),
   );
   renderIcons();
@@ -201,14 +207,24 @@ function memberList(onChanged) {
   [...appState.members].sort(compareMembers).forEach((member) => {
     const profile = member.profiles || {};
     const label = profile.alias || profile.email || profile.phone || `Användare ${member.user_id.slice(0, 8)}`;
-    const canRemove = owner && member.role !== 'owner';
+    const isSelf = member.user_id === appState.user.id;
+    const canRemove = isSelf || (owner && member.role !== 'owner');
+    const removeLabel = isSelf ? 'Gå ur gruppen' : 'Ta bort medlem';
+    const activeText = memberHasLocation(member.user_id) ? 'inloggad' : '';
+    const phonePanel = memberPhonePanel(profile);
     list.append(
       el('div', { className: `member-row status-${member.status}` }, [
         Object.assign(symbolNode(profile.symbol || 'hat', 'member-symbol'), { style: `color: ${profile.symbol_color || '#17324d'}` }),
         el('div', { className: 'member-main' }, [
           el('strong', { text: label }),
-          el('small', { text: member.status === 'approved' ? member.role : `${member.role} · ${member.status}` }),
+          el('small', { text: memberRowMeta(member, activeText) }),
+          el('button', {
+            type: 'button',
+            className: 'member-phone-link',
+            onClick: () => phonePanel.hidden = !phonePanel.hidden,
+          }, ['mobil']),
         ]),
+        phonePanel,
         admin && member.status === 'pending'
           ? el('div', { className: 'row-actions' }, [
               actionButton('check', 'Godkänn', () => updateMember(member.id, { status: 'approved', approved_at: new Date().toISOString() }, onChanged)),
@@ -216,7 +232,7 @@ function memberList(onChanged) {
             ])
           : null,
         member.status !== 'pending'
-          ? actionButton('x', canRemove ? 'Ta bort medlem' : 'Bara owner kan ta bort medlemmar', () => removeMember(member, label, onChanged), {
+          ? actionButton('x', canRemove ? removeLabel : 'Bara owner kan ta bort andra medlemmar', () => removeMember(member, label, onChanged), {
               className: 'danger-icon-button member-remove-button',
               disabled: !canRemove,
             })
@@ -227,16 +243,90 @@ function memberList(onChanged) {
   return list;
 }
 
+function memberPhonePanel(profile) {
+  const canShowPhone = profile.show_phone !== false && Boolean(profile.phone);
+  const value = canShowPhone ? profile.phone : 'ej angivet';
+  return el('div', { className: 'member-phone-popover', hidden: true }, [
+    canShowPhone
+      ? el('button', {
+          type: 'button',
+          className: 'member-phone-number',
+          title: 'Kopiera mobilnummer',
+          onClick: () => copyPhoneNumber(profile.phone),
+        }, [value])
+      : el('span', { text: value }),
+  ]);
+}
+
+async function copyPhoneNumber(phone) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(phone);
+    } else {
+      const input = el('input', { value: phone });
+      input.style.position = 'fixed';
+      input.style.left = '-9999px';
+      document.body.append(input);
+      input.select();
+      document.execCommand('copy');
+      input.remove();
+    }
+    showToast('Mobilnumret kopierades.', 'success');
+  } catch (error) {
+    console.error(error);
+    showToast('Kunde inte kopiera mobilnumret.', 'error');
+  }
+}
+
 function compareMembers(a, b) {
   const roleRank = { owner: 0, admin: 1, member: 2 };
   const statusRank = { approved: 0, pending: 1, rejected: 2 };
   const roleDiff = (roleRank[a.role] ?? 3) - (roleRank[b.role] ?? 3);
   if (roleDiff) return roleDiff;
+  const activeDiff = Number(memberHasLocation(b.user_id)) - Number(memberHasLocation(a.user_id));
+  if (activeDiff) return activeDiff;
   const statusDiff = (statusRank[a.status] ?? 3) - (statusRank[b.status] ?? 3);
   if (statusDiff) return statusDiff;
   const nameA = a.profiles?.alias || a.profiles?.email || '';
   const nameB = b.profiles?.alias || b.profiles?.email || '';
   return nameA.localeCompare(nameB, 'sv');
+}
+
+function memberHasLocation(userId) {
+  return appState.locations.some((location) => location.user_id === userId);
+}
+
+function memberRowMeta(member, activeText) {
+  const role = member.role === 'owner' ? 'owner' : 'member';
+  const status = member.status === 'approved' ? activeText : member.status;
+  return [role, status].filter(Boolean).join(' · ');
+}
+
+function clearLocationPinsControl(onChanged) {
+  return el('div', { className: 'admin-cleanup map-cleanup' }, [
+    el('p', { className: 'muted', text: 'Rensa skickade platsnålar för gruppen. Vanliga chattmeddelanden och polls sparas.' }),
+    el('button', {
+      type: 'button',
+      className: 'danger-button',
+      title: 'Rensa skickade platsnålar permanent',
+      onClick: () => clearLocationPins(onChanged),
+    }, [icon('map-pin-x', 'Rensa'), 'Rensa platsnålar']),
+  ]);
+}
+
+async function clearLocationPins(onChanged) {
+  if (!isGroupOwner() || !appState.activeGroupId) return;
+  const confirmed = window.confirm('Rensa alla skickade platsnålar i gruppen?\n\nPlatsmeddelandena tas bort permanent, men övrig chatt sparas.');
+  if (!confirmed) return;
+  try {
+    const { data, error } = await requireSupabase().rpc('clear_group_location_messages', { target_group_id: appState.activeGroupId });
+    if (error) throw error;
+    showToast(`Platsnålar rensades. ${data ?? 0} platsmeddelanden togs bort.`, 'success');
+    await onChanged();
+  } catch (error) {
+    console.error(error);
+    showToast(friendlyError(error, 'Kunde inte rensa platsnålar.'), 'error');
+  }
 }
 
 function clearChatControl(onChanged) {
@@ -305,6 +395,7 @@ async function deleteGroup(groupName, onChanged) {
 
 function actionButton(iconName, label, handler, options = {}) {
   return el('button', {
+    type: 'button',
     className: options.className || 'icon-button',
     title: label,
     disabled: options.disabled,
@@ -313,17 +404,26 @@ function actionButton(iconName, label, handler, options = {}) {
 }
 
 async function removeMember(member, label, onChanged) {
-  if (!isGroupOwner() || member.role === 'owner') return;
-  const confirmed = window.confirm(`Ta bort ${label} från gruppen?`);
+  const isSelf = member.user_id === appState.user.id;
+  if (!isSelf && (!isGroupOwner() || member.role === 'owner')) return;
+  const confirmed = window.confirm(isSelf ? `Gå ur gruppen "${appState.activeGroup?.name || ''}"?` : `Ta bort ${label} från gruppen?`);
   if (!confirmed) return;
   try {
-    const { error } = await requireSupabase().from('group_members').delete().eq('id', member.id);
+    const request = isSelf
+      ? requireSupabase().rpc('leave_group', { target_group_id: appState.activeGroupId })
+      : requireSupabase().from('group_members').delete().eq('id', member.id);
+    const { error } = await request;
     if (error) throw error;
-    showToast('Medlemmen togs bort.', 'success');
+    if (isSelf) {
+      setActiveGroupId(null);
+      appState.activeGroup = null;
+      appState.members = [];
+    }
+    showToast(isSelf ? 'Du gick ur gruppen.' : 'Medlemmen togs bort.', 'success');
     await onChanged();
   } catch (error) {
     console.error(error);
-    showToast(friendlyError(error, 'Kunde inte ta bort medlem.'), 'error');
+    showToast(friendlyError(error, isSelf ? 'Kunde inte gå ur gruppen.' : 'Kunde inte ta bort medlem.'), 'error');
   }
 }
 

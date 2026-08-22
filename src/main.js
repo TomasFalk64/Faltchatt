@@ -73,7 +73,7 @@ function groupStateSignature() {
     appState.activeGroupId || '',
     appState.activeGroup?.name || '',
     appState.memberships.map((member) => `${member.id}:${member.group_id}:${member.groups?.name || ''}:${member.role}:${member.status}`).join('|'),
-    appState.members.map((member) => `${member.id}:${member.user_id}:${member.role}:${member.status}:${member.profiles?.alias || ''}:${member.profiles?.email || ''}`).join('|'),
+    appState.members.map((member) => `${member.id}:${member.user_id}:${member.role}:${member.status}:${member.profiles?.alias || ''}:${member.profiles?.email || ''}:${member.profiles?.phone || ''}:${member.profiles?.show_phone}`).join('|'),
   ].join('::');
 }
 

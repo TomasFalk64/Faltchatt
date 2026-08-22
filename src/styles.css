@@ -499,11 +499,14 @@ code {
 .member-list {
   display: grid;
   gap: 0;
+  max-height: 166px;
+  overflow-y: auto;
   border-top: 1px solid #e0e6ed;
   border-bottom: 1px solid #e0e6ed;
 }
 
 .member-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -536,6 +539,39 @@ code {
 .member-main small {
   color: #64748b;
   font-size: 0.78em;
+}
+
+.member-phone-link {
+  padding: 0;
+  background: transparent;
+  color: #155e75;
+  font-size: 0.78em;
+  font-weight: 750;
+  text-decoration: underline;
+}
+
+.member-phone-popover {
+  position: absolute;
+  z-index: 4;
+  right: 2.1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 120px;
+  border: 1px solid #b9c5d2;
+  border-radius: 6px;
+  padding: 0.35rem 0.45rem;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(20, 33, 45, 0.16);
+  color: #334155;
+  font-size: 0.82rem;
+}
+
+.member-phone-number {
+  padding: 0;
+  background: transparent;
+  color: #146c43;
+  font-weight: 800;
+  text-decoration: underline;
 }
 
 .status-pending {
