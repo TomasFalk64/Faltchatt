@@ -305,6 +305,12 @@ code {
   margin: 0;
   color: #526170;
   font-size: 0.9rem;
+  min-height: 2.35em;
+}
+
+.auth-reset-button.is-placeholder {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .page {

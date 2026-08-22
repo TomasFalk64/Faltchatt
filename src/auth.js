@@ -86,7 +86,7 @@ function authForm() {
   const password = el('input', { type: 'password', placeholder: 'Lösenord', autocomplete: 'current-password', required: true, minlength: '6' });
   let currentMode = 'signin';
   const submitButton = el('button', { className: 'primary', type: 'submit' }, [icon('log-in', 'Logga in'), 'Fortsätt']);
-  const resetButton = el('button', { type: 'button', className: 'ghost', onClick: resetPassword }, [icon('key-round', 'Återställ'), 'Återställ lösenord']);
+  const resetButton = el('button', { type: 'button', className: 'ghost auth-reset-button', onClick: resetPassword }, [icon('key-round', 'Återställ'), 'Återställ lösenord']);
   const signInTab = el('button', { type: 'button', className: 'auth-mode-button active', onClick: () => setMode('signin') }, ['Logga in']);
   const signUpTab = el('button', { type: 'button', className: 'auth-mode-button', onClick: () => setMode('signup') }, ['Skapa konto']);
   const modeHint = el('p', { className: 'auth-mode-hint', text: 'Logga in med ditt befintliga konto.' });
@@ -100,7 +100,9 @@ function authForm() {
     signUpTab.setAttribute('aria-pressed', String(isSignup));
     password.setAttribute('autocomplete', isSignup ? 'new-password' : 'current-password');
     submitButton.replaceChildren(icon(isSignup ? 'user-plus' : 'log-in', isSignup ? 'Skapa konto' : 'Logga in'), isSignup ? 'Skapa konto' : 'Logga in');
-    resetButton.hidden = isSignup;
+    resetButton.classList.toggle('is-placeholder', isSignup);
+    resetButton.disabled = isSignup;
+    resetButton.setAttribute('aria-hidden', String(isSignup));
     modeHint.textContent = isSignup
       ? 'Skapa konto med e-post och lösenord. Du behöver bekräfta e-postmeddelandet innan du kan logga in.'
       : 'Logga in med ditt befintliga konto.';
