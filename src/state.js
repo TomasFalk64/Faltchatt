@@ -11,14 +11,14 @@ export const SYMBOLS = [
 ];
 
 export const SYMBOL_COLORS = [
-  '#ef4444',
-  '#ec4899',
-  '#facc15',
+  '#f70404',
+  '#ff52a8',
+  '#fcf700',
   '#92400e',
-  '#22c55e',
-  '#14b8a6',
-  '#2563eb',
-  '#8b5cf6',
+  '#03c74b',
+  '#00fcde',
+  '#044be6',
+  '#9063fa',
   '#9ca3af',
   '#111827',
 ];

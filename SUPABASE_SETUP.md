@@ -39,7 +39,7 @@ I Dashboard, gå till Authentication:
 
 - Aktivera Email provider.
 - Välj om e-postbekräftelse ska krävas.
-- Lägg in lokal redirect URL om lösenordsåterställning används, exempelvis `http://127.0.0.1:5173`.
+- Lägg in redirect URLs för både lokal test och publicerad app, exempelvis `http://127.0.0.1:5173/Faltchatt/` och `https://tomasfalk64.github.io/Faltchatt/`.
 
 ## 4. Storage
 

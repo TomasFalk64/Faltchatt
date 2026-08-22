@@ -28,6 +28,10 @@ function isRecoveryUrl() {
   return query.get('type') === 'recovery' || hash.get('type') === 'recovery';
 }
 
+function authRedirectUrl() {
+  return new URL(import.meta.env.BASE_URL, window.location.origin).toString();
+}
+
 async function applySession(session) {
   appState.session = session;
   appState.user = session?.user || null;
@@ -116,7 +120,7 @@ function authForm() {
       const credentials = { email: email.value.trim(), password: password.value };
       const result =
         currentMode === 'signup'
-          ? await client.auth.signUp(credentials)
+          ? await client.auth.signUp({ ...credentials, options: { emailRedirectTo: authRedirectUrl() } })
           : await client.auth.signInWithPassword(credentials);
       if (result.error) throw result.error;
       if (currentMode === 'signup' && result.data?.user && Array.isArray(result.data.user.identities) && result.data.user.identities.length === 0) {
@@ -136,7 +140,7 @@ function authForm() {
     }
     try {
       const { error } = await requireSupabase().auth.resetPasswordForEmail(email.value.trim(), {
-        redirectTo: window.location.origin,
+        redirectTo: authRedirectUrl(),
       });
       if (error) throw error;
       showToast('Länk för lösenordsåterställning skickad.', 'success');
@@ -163,7 +167,7 @@ export function renderProfile() {
   view.innerHTML = '';
   if (!appState.user) return;
 
-  const alias = el('input', { value: appState.profile?.alias || '', placeholder: 'Alias' });
+  const alias = el('input', { value: appState.profile?.alias || '', placeholder: 'Välj alias' });
   const phone = el('input', { value: appState.profile?.phone || '', placeholder: 'Mobilnummer', type: 'tel' });
   let selectedSymbol = SYMBOLS.some((item) => item.id === appState.profile?.symbol) ? appState.profile.symbol : SYMBOLS[0].id;
   let selectedColor = appState.profile?.symbol_color || SYMBOL_COLORS[0];
