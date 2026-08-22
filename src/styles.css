@@ -512,6 +512,10 @@ code {
   white-space: nowrap;
 }
 
+.admin-role-control .compact-form-row {
+  grid-template-columns: minmax(0, 1fr) minmax(6rem, auto) auto;
+}
+
 .warning-text {
   color: #9a3412;
 }
@@ -598,8 +602,92 @@ code {
   text-decoration: underline;
 }
 
+.invite-symbol {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: #155e75;
+}
+
+.invite-symbol svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.import-members-control {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.import-preview-box {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid #d8e0e8;
+  border-radius: 7px;
+  padding: 0.55rem;
+  background: #f8fafc;
+}
+
+.import-stats {
+  display: grid;
+  gap: 0.15rem;
+  color: #526170;
+  font-size: 0.84rem;
+}
+
+.import-table {
+  display: grid;
+  max-height: 170px;
+  overflow-y: auto;
+  border-top: 1px solid #e0e6ed;
+  border-bottom: 1px solid #e0e6ed;
+  font-size: 0.82rem;
+}
+
+.import-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.8fr) auto;
+  gap: 0.35rem;
+  align-items: center;
+  min-height: 28px;
+  border-bottom: 1px solid #e8edf2;
+  padding: 0.25rem 0;
+}
+
+.import-row:last-child {
+  border-bottom: 0;
+}
+
+.import-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-ready span:last-child,
+.import-pending span:last-child {
+  color: #146c43;
+  font-weight: 750;
+}
+
+.import-invalid span:last-child,
+.import-duplicate span:last-child {
+  color: #b91c1c;
+  font-weight: 750;
+}
+
+.import-existing span:last-child,
+.import-invited span:last-child {
+  color: #64748b;
+}
+
 .status-pending {
   background: #fff7ed;
+}
+
+.status-invited {
+  background: #f8fafc;
 }
 
 .symbol-preview {

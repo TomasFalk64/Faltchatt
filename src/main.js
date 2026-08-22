@@ -1,7 +1,7 @@
 import './styles.css';
 import { isSupabaseConfigured } from './supabase.js';
 import { initAuth, renderAuth, renderProfile, setAuthChangeHandler } from './auth.js';
-import { loadGroups, loadMembers, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
+import { loadGroups, loadInvites, loadMembers, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
 import { loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
 import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, startSharing, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
 import { appState, setActiveGroupId } from './state.js';
@@ -29,6 +29,7 @@ async function reloadAll() {
       appState.activeGroup = null;
       appState.memberships = [];
       appState.members = [];
+      appState.invites = [];
       appState.messages = [];
       appState.locations = [];
       stopSharing();
@@ -74,6 +75,7 @@ function groupStateSignature() {
     appState.activeGroup?.name || '',
     appState.memberships.map((member) => `${member.id}:${member.group_id}:${member.groups?.name || ''}:${member.role}:${member.status}`).join('|'),
     appState.members.map((member) => `${member.id}:${member.user_id}:${member.role}:${member.status}:${member.profiles?.alias || ''}:${member.profiles?.email || ''}:${member.profiles?.phone || ''}:${member.profiles?.show_phone}`).join('|'),
+    appState.invites.map((invite) => `${invite.id}:${invite.email}:${invite.phone || ''}:${invite.alias || ''}:${invite.status}`).join('|'),
   ].join('::');
 }
 
@@ -91,7 +93,7 @@ function renderAll() {
   renderProfile();
   renderGroups(async () => {
     await loadGroups();
-    await Promise.all([loadMembers(), loadChatData(), loadLocations()]);
+    await Promise.all([loadMembers(), loadInvites(), loadChatData(), loadLocations()]);
     renderAll();
   });
   renderMapView(reloadAll);

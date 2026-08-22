@@ -32,6 +32,7 @@ export const appState = {
   activeGroup: null,
   memberships: [],
   members: [],
+  invites: [],
   messages: [],
   questions: new Map(),
   answers: [],

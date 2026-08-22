@@ -37,10 +37,19 @@ async function applySession(session) {
   appState.user = session?.user || null;
   if (appState.user) {
     await ensureProfile();
+    await claimGroupInvites();
   } else {
     appState.profile = null;
   }
   setSessionPill();
+}
+
+async function claimGroupInvites() {
+  try {
+    await requireSupabase().rpc('claim_group_invites');
+  } catch (error) {
+    console.warn('Kunde inte kontrollera gruppinbjudningar.', error);
+  }
 }
 
 export async function ensureProfile() {
