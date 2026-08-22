@@ -108,7 +108,7 @@ export function renderGroups(onChanged = async () => {}) {
         createGroupForm(onChanged),
         joinGroupForm(onChanged),
       ]),
-      el('section', { className: 'panel stack' }, [el('h2', { text: 'Administration' }), clearChatControl(onChanged)]),
+      el('section', { className: 'panel stack' }, [el('h2', { text: 'Administration' }), clearChatControl(onChanged), deleteGroupControl(onChanged)]),
     ]),
   );
   renderIcons();
@@ -138,13 +138,21 @@ function createGroupForm(onChanged) {
   const input = el('input', { placeholder: 'Gruppnamn' });
   const submit = async (event) => {
     event.preventDefault();
-    if (!input.value.trim()) return;
+    const groupName = input.value.trim();
+    if (!groupName) return;
     try {
-      const { error } = await requireSupabase().rpc('create_group_with_owner', { group_name: input.value.trim() });
+      const { data: groupId, error } = await requireSupabase().rpc('create_group_with_owner', { group_name: groupName });
       if (error) throw error;
       input.value = '';
-      showToast('Gruppen skapades.', 'success');
       await onChanged();
+      const createdMembership = appState.memberships.find((membership) => membership.group_id === groupId);
+      const joinCode = createdMembership?.groups?.join_code;
+      window.alert(
+        joinCode
+          ? `Gruppen "${groupName}" är skapad och går att ansluta till med gruppkod:\n\n${joinCode}`
+          : `Gruppen "${groupName}" är skapad och går att ansluta till.`,
+      );
+      showToast('Gruppen skapades.', 'success');
     } catch (error) {
       console.error(error);
       showToast(friendlyError(error, 'Kunde inte skapa grupp.'), 'error');
@@ -160,7 +168,7 @@ function createGroupForm(onChanged) {
 }
 
 function joinGroupForm(onChanged) {
-  const input = el('input', { placeholder: 'gul-prickig-kantarell', autocapitalize: 'none' });
+  const input = el('input', { placeholder: 'Ange gruppkod, tex vild-snäll-murkla', autocapitalize: 'none' });
   const submit = async (event) => {
     event.preventDefault();
     if (!input.value.trim()) return;
@@ -176,7 +184,7 @@ function joinGroupForm(onChanged) {
     }
   };
   return el('form', { className: 'stack subsection', onSubmit: submit }, [
-    el('h3', { text: 'Gå med' }),
+    el('h3', { text: 'Gå med i grupp' }),
     el('div', { className: 'compact-form-row' }, [
       input,
       el('button', { className: 'secondary', type: 'submit' }, [icon('user-plus', 'Gå med'), 'Ansök']),
@@ -258,6 +266,40 @@ async function clearGroupChat(groupName, onChanged) {
   } catch (error) {
     console.error(error);
     showToast(friendlyError(error, 'Kunde inte rensa chatten.'), 'error');
+  }
+}
+
+function deleteGroupControl(onChanged) {
+  const owner = isGroupOwner();
+  const groupName = appState.activeGroup?.name || 'gruppen';
+  return el('div', { className: 'admin-cleanup delete-group-cleanup' }, [
+    el('p', { className: 'muted', text: 'Ta bort hela gruppen permanent. Medlemmar, positioner, chatt och polls tas bort.' }),
+    el('button', {
+      type: 'button',
+      className: 'danger-button',
+      disabled: !owner || !appState.activeGroupId,
+      title: owner ? 'Ta bort gruppen permanent' : 'Bara gruppens owner kan ta bort gruppen',
+      onClick: () => deleteGroup(groupName, onChanged),
+    }, [icon('trash-2', 'Ta bort'), 'Ta bort grupp']),
+  ]);
+}
+
+async function deleteGroup(groupName, onChanged) {
+  if (!isGroupOwner() || !appState.activeGroupId) return;
+  const confirmed = window.confirm(`Ta bort gruppen "${groupName}" permanent?\n\nDet går inte att ångra. Medlemmar, positioner, chatt och polls tas bort.`);
+  if (!confirmed) return;
+  try {
+    const groupId = appState.activeGroupId;
+    const { error } = await requireSupabase().rpc('delete_group', { target_group_id: groupId });
+    if (error) throw error;
+    setActiveGroupId(null);
+    appState.activeGroup = null;
+    appState.members = [];
+    showToast(`Gruppen "${groupName}" togs bort.`, 'success');
+    await onChanged();
+  } catch (error) {
+    console.error(error);
+    showToast(friendlyError(error, 'Kunde inte ta bort gruppen.'), 'error');
   }
 }
 
