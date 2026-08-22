@@ -160,12 +160,12 @@ function createGroupForm(onChanged) {
 }
 
 function joinGroupForm(onChanged) {
-  const input = el('input', { placeholder: 'Gruppkod', autocapitalize: 'characters' });
+  const input = el('input', { placeholder: 'gul-prickig-kantarell', autocapitalize: 'none' });
   const submit = async (event) => {
     event.preventDefault();
     if (!input.value.trim()) return;
     try {
-      const { error } = await requireSupabase().rpc('request_group_membership', { requested_join_code: input.value.trim().toUpperCase() });
+      const { error } = await requireSupabase().rpc('request_group_membership', { requested_join_code: input.value.trim() });
       if (error) throw error;
       showToast('Medlemsförfrågan skickad.', 'success');
       input.value = '';
