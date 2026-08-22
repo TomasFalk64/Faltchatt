@@ -1,7 +1,7 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { appState } from './state.js';
-import { canAdminGroup, isApprovedMember } from './groups.js';
+import { canAdminGroup, isApprovedMember, isGroupOwner } from './groups.js';
 import { refreshChatMessages, sendMessage } from './chat.js';
 import { deleteGroupGeoTiff, listGroupGeoTiffs, loadGeoTiffLayers, removeGeoTiffLayers, setGeoTiffOpacity, uploadGroupGeoTiff } from './geotiff.js';
 import { requireSupabase } from './supabase.js';
@@ -120,6 +120,7 @@ export function renderMapControls(onChanged) {
         el('label', {}, ['GeoTIFF opacitet', opacity]),
         canAdminGroup() ? el('div', { className: 'upload-control' }, [upload, uploadButton]) : null,
         mapList,
+        clearLocationPinsControl(onChanged),
       ]),
     ]),
   );
@@ -241,6 +242,37 @@ function mapFileRow(mapFile, onChanged) {
   ]);
 }
 
+function clearLocationPinsControl(onChanged) {
+  const owner = isGroupOwner();
+  return el('div', { className: 'admin-cleanup map-cleanup' }, [
+    el('p', { className: 'muted', text: 'Rensa skickade platsnålar för gruppen. Vanliga chattmeddelanden och polls sparas.' }),
+    el('button', {
+      type: 'button',
+      className: 'danger-button',
+      disabled: !owner,
+      title: owner ? 'Rensa skickade platsnålar permanent' : 'Bara gruppens owner kan rensa platsnålar',
+      onClick: () => clearLocationPins(onChanged),
+    }, [icon('map-pin-x', 'Rensa'), 'Rensa platsnålar']),
+  ]);
+}
+
+async function clearLocationPins(onChanged) {
+  if (!isGroupOwner() || !appState.activeGroupId) return;
+  const confirmed = window.confirm('Rensa alla skickade platsnålar i gruppen?\n\nPlatsmeddelandena tas bort permanent, men övrig chatt sparas.');
+  if (!confirmed) return;
+  try {
+    const { data, error } = await requireSupabase().rpc('clear_group_location_messages', { target_group_id: appState.activeGroupId });
+    if (error) throw error;
+    hiddenSentLocationIds.clear();
+    saveHiddenSentLocations();
+    showToast(`Platsnålar rensades. ${data ?? 0} platsmeddelanden togs bort.`, 'success');
+    await onChanged();
+  } catch (error) {
+    console.error(error);
+    showToast(friendlyError(error, 'Kunde inte rensa platsnålar.'), 'error');
+  }
+}
+
 async function refreshGroupGeoTiffList(force = false) {
   if (!appState.activeGroupId || !isApprovedMember()) {
     groupGeoTiffs = [];
@@ -346,10 +378,15 @@ function bindSentLocationCloseButton(messageId, marker) {
 function sentLocationIcon() {
   return L.divIcon({
     className: 'sent-location-icon',
-    html: '<span aria-hidden="true"></span>',
-    iconSize: [22, 28],
-    iconAnchor: [11, 26],
-    popupAnchor: [0, -24],
+    html: `
+      <svg viewBox="0 0 24 32" aria-hidden="true" focusable="false">
+        <path d="M12 31C8.4 25.8 4 19.6 4 12a8 8 0 1 1 16 0c0 7.6-4.4 13.8-8 19Z" />
+        <circle cx="12" cy="12" r="3.2" />
+      </svg>
+    `,
+    iconSize: [24, 32],
+    iconAnchor: [12, 30],
+    popupAnchor: [0, -28],
   });
 }
 

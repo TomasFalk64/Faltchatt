@@ -17,6 +17,10 @@ export function canAdminGroup() {
   return ['owner', 'admin'].includes(currentRole());
 }
 
+export function isGroupOwner() {
+  return currentRole() === 'owner';
+}
+
 export async function loadGroups() {
   if (!appState.user) return;
   const client = requireSupabase();
@@ -98,12 +102,13 @@ export function renderGroups(onChanged = async () => {}) {
     el('div', { className: 'page sidebar-page' }, [
       el('section', { className: 'panel stack' }, [
         el('h2', { text: 'Grupp' }),
-        el('label', {}, ['Aktuell grupp', groupSelect]),
+        el('label', { className: 'group-section-label' }, ['Aktuell grupp', groupSelect]),
+        memberList(onChanged),
         activeGroupSummary(),
         createGroupForm(onChanged),
         joinGroupForm(onChanged),
       ]),
-      el('section', { className: 'panel stack' }, [el('h2', { text: 'Medlemmar' }), memberList(onChanged)]),
+      el('section', { className: 'panel stack' }, [el('h2', { text: 'Administration' }), clearChatControl(onChanged)]),
     ]),
   );
   renderIcons();
@@ -113,10 +118,8 @@ function activeGroupSummary() {
   if (!appState.activeGroup) return el('p', { className: 'muted', text: 'Skapa eller gå med i en grupp för att använda karta och chatt.' });
   const membership = appState.memberships.find((item) => item.group_id === appState.activeGroupId);
   return el('div', { className: 'group-summary' }, [
-    el('strong', { text: appState.activeGroup.name }),
-    el('span', { text: membership?.status === 'approved' ? `Roll: ${membership?.role || '-'}` : `Roll: ${membership?.role || '-'} · ${membership?.status || '-'}` }),
-    el('div', { className: 'group-code-block' }, [
-      el('span', { text: 'Gruppkod' }),
+    el('div', { className: 'group-code-line' }, [
+      el('span', { text: 'Gruppkod:' }),
       el('code', {
         text: appState.activeGroup.join_code,
         title: 'Ge gruppkoden till personer som ska begära medlemskap i gruppen.',
@@ -149,8 +152,10 @@ function createGroupForm(onChanged) {
   };
   return el('form', { className: 'stack subsection', onSubmit: submit }, [
     el('h3', { text: 'Skapa grupp' }),
-    input,
-    el('button', { className: 'primary', type: 'submit' }, [icon('plus', 'Skapa'), 'Skapa grupp']),
+    el('div', { className: 'compact-form-row' }, [
+      input,
+      el('button', { className: 'primary', type: 'submit' }, [icon('plus', 'Skapa'), 'Skapa']),
+    ]),
   ]);
 }
 
@@ -172,8 +177,10 @@ function joinGroupForm(onChanged) {
   };
   return el('form', { className: 'stack subsection', onSubmit: submit }, [
     el('h3', { text: 'Gå med' }),
-    input,
-    el('button', { className: 'secondary', type: 'submit' }, [icon('user-plus', 'Gå med'), 'Begär medlemskap']),
+    el('div', { className: 'compact-form-row' }, [
+      input,
+      el('button', { className: 'secondary', type: 'submit' }, [icon('user-plus', 'Gå med'), 'Ansök']),
+    ]),
   ]);
 }
 
@@ -181,10 +188,12 @@ function memberList(onChanged) {
   if (!appState.activeGroup) return el('p', { className: 'muted', text: 'Ingen grupp vald.' });
   if (!isApprovedMember()) return el('p', { className: 'muted', text: 'Medlemslistan visas efter godkännande.' });
   const admin = canAdminGroup();
+  const owner = isGroupOwner();
   const list = el('div', { className: 'member-list' });
-  appState.members.forEach((member) => {
+  [...appState.members].sort(compareMembers).forEach((member) => {
     const profile = member.profiles || {};
     const label = profile.alias || profile.email || profile.phone || `Användare ${member.user_id.slice(0, 8)}`;
+    const canRemove = owner && member.role !== 'owner';
     list.append(
       el('div', { className: `member-row status-${member.status}` }, [
         Object.assign(symbolNode(profile.symbol || 'hat', 'member-symbol'), { style: `color: ${profile.symbol_color || '#17324d'}` }),
@@ -198,14 +207,82 @@ function memberList(onChanged) {
               actionButton('x', 'Avvisa', () => updateMember(member.id, { status: 'rejected' }, onChanged)),
             ])
           : null,
+        member.status !== 'pending'
+          ? actionButton('x', canRemove ? 'Ta bort medlem' : 'Bara owner kan ta bort medlemmar', () => removeMember(member, label, onChanged), {
+              className: 'danger-icon-button member-remove-button',
+              disabled: !canRemove,
+            })
+          : null,
       ]),
     );
   });
   return list;
 }
 
-function actionButton(iconName, label, handler) {
-  return el('button', { className: 'icon-button', title: label, onClick: handler }, [icon(iconName, label)]);
+function compareMembers(a, b) {
+  const roleRank = { owner: 0, admin: 1, member: 2 };
+  const statusRank = { approved: 0, pending: 1, rejected: 2 };
+  const roleDiff = (roleRank[a.role] ?? 3) - (roleRank[b.role] ?? 3);
+  if (roleDiff) return roleDiff;
+  const statusDiff = (statusRank[a.status] ?? 3) - (statusRank[b.status] ?? 3);
+  if (statusDiff) return statusDiff;
+  const nameA = a.profiles?.alias || a.profiles?.email || '';
+  const nameB = b.profiles?.alias || b.profiles?.email || '';
+  return nameA.localeCompare(nameB, 'sv');
+}
+
+function clearChatControl(onChanged) {
+  const owner = isGroupOwner();
+  const groupName = appState.activeGroup?.name || 'gruppen';
+  return el('div', { className: 'admin-cleanup' }, [
+    el('p', { className: 'muted', text: 'Rensa hela chatten för gruppen. Textmeddelanden, polls, svar och platsnålar tas bort permanent.' }),
+    el('button', {
+      type: 'button',
+      className: 'danger-button',
+      disabled: !owner,
+      title: owner ? 'Rensa hela chatten permanent' : 'Bara gruppens owner kan rensa chatten',
+      onClick: () => clearGroupChat(groupName, onChanged),
+    }, [icon('trash-2', 'Rensa'), 'Rensa chatt']),
+  ]);
+}
+
+async function clearGroupChat(groupName, onChanged) {
+  if (!isGroupOwner() || !appState.activeGroupId) return;
+  const confirmed = window.confirm(`Rensa hela chatten i "${groupName}"?\n\nDet tar bort textmeddelanden, polls, svar och platsnålar permanent.`);
+  if (!confirmed) return;
+  try {
+    const { data, error } = await requireSupabase().rpc('clear_group_chat', { target_group_id: appState.activeGroupId });
+    if (error) throw error;
+    showToast(`Chatten rensades. ${data ?? 0} meddelanden togs bort.`, 'success');
+    await onChanged();
+  } catch (error) {
+    console.error(error);
+    showToast(friendlyError(error, 'Kunde inte rensa chatten.'), 'error');
+  }
+}
+
+function actionButton(iconName, label, handler, options = {}) {
+  return el('button', {
+    className: options.className || 'icon-button',
+    title: label,
+    disabled: options.disabled,
+    onClick: handler,
+  }, [icon(iconName, label)]);
+}
+
+async function removeMember(member, label, onChanged) {
+  if (!isGroupOwner() || member.role === 'owner') return;
+  const confirmed = window.confirm(`Ta bort ${label} från gruppen?`);
+  if (!confirmed) return;
+  try {
+    const { error } = await requireSupabase().from('group_members').delete().eq('id', member.id);
+    if (error) throw error;
+    showToast('Medlemmen togs bort.', 'success');
+    await onChanged();
+  } catch (error) {
+    console.error(error);
+    showToast(friendlyError(error, 'Kunde inte ta bort medlem.'), 'error');
+  }
 }
 
 async function updateMember(memberId, patch, onChanged) {

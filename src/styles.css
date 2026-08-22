@@ -20,6 +20,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: #f4f6f8;
+  font-size: 15px;
 }
 
 button,
@@ -50,7 +51,7 @@ textarea {
   width: 100%;
   border: 1px solid #c8d1dc;
   border-radius: 6px;
-  padding: 0.75rem;
+  padding: 0.55rem 0.65rem;
   background: #fff;
   color: #17212b;
 }
@@ -61,7 +62,7 @@ textarea {
 
 label {
   display: grid;
-  gap: 0.4rem;
+  gap: 0.3rem;
   font-weight: 650;
   color: #334155;
 }
@@ -145,7 +146,7 @@ code {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: #526170;
-  font-size: 0.9rem;
+  font-size: 0.84rem;
 }
 
 .workspace {
@@ -263,12 +264,12 @@ code {
 .page {
   width: 100%;
   margin: 0 auto;
-  padding: 0.85rem;
+  padding: 0.7rem;
 }
 
 .sidebar-page {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.52rem;
 }
 
 .narrow {
@@ -283,18 +284,23 @@ code {
 .panel {
   border: 1px solid #d8e0e8;
   border-radius: 8px;
-  padding: 1rem;
+  padding: 0.7rem;
   background: #fff;
 }
 
 .stack {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.52rem;
 }
 
 .subsection {
   border-top: 1px solid #e0e6ed;
-  padding-top: 1rem;
+  padding-top: 0.52rem;
+}
+
+.subsection h3,
+.panel h2 {
+  margin: 0;
 }
 
 .primary,
@@ -306,9 +312,9 @@ code {
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
-  min-height: 44px;
+  min-height: 38px;
   border-radius: 6px;
-  padding: 0.65rem 0.85rem;
+  padding: 0.5rem 0.7rem;
   font-weight: 750;
 }
 
@@ -329,7 +335,7 @@ code {
 }
 
 .link-button {
-  min-height: 36px;
+  min-height: 32px;
   padding: 0.35rem 0;
   background: transparent;
   color: #155e75;
@@ -337,8 +343,8 @@ code {
 }
 
 .icon-button {
-  width: 40px;
-  min-height: 40px;
+  width: 36px;
+  min-height: 36px;
   padding: 0;
   background: #e8eef5;
   color: #17212b;
@@ -356,7 +362,7 @@ code {
   display: grid;
   place-items: center;
   gap: 0;
-  min-height: 52px;
+  min-height: 46px;
   background: #fff;
   color: #526170;
   font-size: 0.78rem;
@@ -372,8 +378,8 @@ code {
 }
 
 .nav-button svg {
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .nav-button.active {
@@ -399,15 +405,35 @@ code {
 
 .group-summary {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
-.group-code-block {
-  display: grid;
-  gap: 0.25rem;
-  align-items: start;
+.group-section-label {
+  font-size: 0.98rem;
+}
+
+.group-code-line {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
   color: #334155;
   font-weight: 650;
+}
+
+.group-code-line code {
+  padding: 0.25rem 0.45rem;
+}
+
+.compact-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: stretch;
+}
+
+.compact-form-row button {
+  white-space: nowrap;
 }
 
 .warning-text {
@@ -420,16 +446,16 @@ code {
 
 .member-list {
   display: grid;
-  gap: 0.65rem;
+  gap: 0.5rem;
 }
 
 .member-row {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.55rem;
   border: 1px solid #e0e6ed;
   border-radius: 8px;
-  padding: 0.65rem;
+  padding: 0.5rem;
 }
 
 .member-main {
@@ -482,7 +508,7 @@ code {
   display: grid;
   place-items: center;
   gap: 0.15rem;
-  min-height: 46px;
+  min-height: 40px;
   border-radius: 6px;
   padding: 0.35rem 0.2rem;
   background: transparent;
@@ -509,7 +535,7 @@ code {
 
 .color-swatch {
   width: 100%;
-  min-height: 46px;
+  min-height: 40px;
   border-radius: 6px;
   border: 2px solid #fff;
   box-shadow: 0 0 0 1px #c8d1dc;
@@ -566,7 +592,7 @@ code {
 
 .map-file-list {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.35rem;
 }
 
 .upload-control {
@@ -591,11 +617,11 @@ code {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.35rem;
   min-width: 0;
   border: 1px solid #d8e0e8;
   border-radius: 6px;
-  padding: 0.45rem;
+  padding: 0.35rem;
   background: #fff;
 }
 
@@ -622,12 +648,53 @@ code {
 .danger-icon-button {
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  min-height: 34px;
+  width: 32px;
+  min-height: 32px;
   border-radius: 6px;
   padding: 0;
   background: #fee2e2;
   color: #991b1b;
+}
+
+.danger-icon-button:disabled {
+  background: #e5e7eb;
+  color: #6b7280;
+  box-shadow: none;
+  opacity: 0.75;
+}
+
+.member-remove-button {
+  margin-left: auto;
+}
+
+.admin-cleanup {
+  display: grid;
+  gap: 0.45rem;
+  border-top: 1px solid #e0e6ed;
+  padding-top: 0.6rem;
+}
+
+.admin-cleanup p {
+  margin: 0;
+}
+
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 38px;
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 800;
+}
+
+.danger-button:disabled {
+  background: #e5e7eb;
+  color: #6b7280;
+  cursor: not-allowed;
 }
 
 .toggle-row {
@@ -636,8 +703,8 @@ code {
 }
 
 .toggle-row input {
-  width: 22px;
-  height: 22px;
+  width: 19px;
+  height: 19px;
 }
 
 .map-send-panel {
@@ -647,7 +714,7 @@ code {
   z-index: 470;
   width: min(360px, calc(100% - 1.5rem));
   border-radius: 8px;
-  padding: 0.65rem;
+  padding: 0.55rem;
   transform: translateX(-50%);
   border: 2px solid #9f7d48;
   background: #f4ecd9;
@@ -655,7 +722,7 @@ code {
 }
 
 .map-send-panel form {
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
 
 .map-send-header {
@@ -674,8 +741,8 @@ code {
 .map-send-submit {
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  min-height: 34px;
+  width: 32px;
+  min-height: 32px;
   border-radius: 6px;
   padding: 0;
 }
@@ -753,7 +820,7 @@ code {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: rgba(97, 106, 116, 0.46);
+  background: rgba(255, 255, 255, 0.72);
   box-shadow: 0 3px 8px rgba(20, 33, 45, 0.24);
 }
 
@@ -781,7 +848,7 @@ code {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: rgba(97, 106, 116, 0.46);
+  background: rgba(255, 255, 255, 0.72);
   border: 3px solid #2f81f7;
   box-shadow: 0 4px 12px rgba(9, 105, 218, 0.35);
 }
@@ -795,25 +862,27 @@ code {
 .sent-location-icon {
   display: grid;
   place-items: center;
+  background: transparent;
+  border: 0;
 }
 
-.sent-location-icon span {
-  position: relative;
-  width: 16px;
-  height: 16px;
-  border: 2px solid #fff;
-  border-radius: 50% 50% 50% 0;
-  background: #b91c1c;
-  box-shadow: 0 3px 8px rgba(20, 33, 45, 0.32);
-  transform: rotate(-45deg);
+.sent-location-icon svg {
+  display: block;
+  width: 24px;
+  height: 32px;
+  overflow: visible;
+  filter: drop-shadow(0 3px 5px rgba(20, 33, 45, 0.32));
 }
 
-.sent-location-icon span::after {
-  content: "";
-  position: absolute;
-  inset: 4px;
-  border-radius: 50%;
-  background: #fff;
+.sent-location-icon path {
+  fill: #b91c1c;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.sent-location-icon circle {
+  fill: #fff;
 }
 
 .chat-layout {
@@ -916,16 +985,16 @@ code {
 
 .composer {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 42px;
+  grid-template-columns: 44px minmax(0, 1fr) 38px;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.6rem;
+  gap: 0.35rem;
+  padding: 0.45rem;
   border-top: 1px solid #d8e0e8;
   background: #fff;
 }
 
 .composer-options {
-  min-height: 38px;
+  min-height: 34px;
 }
 
 .composer-inputs {
@@ -935,56 +1004,56 @@ code {
 }
 
 .mode-toggle {
-  width: 48px;
-  min-height: 34px;
+  width: 44px;
+  min-height: 32px;
   border-radius: 6px;
   padding: 0.35rem 0.25rem;
   background: #eef7f3;
   color: #155e75;
   font-weight: 800;
   text-decoration: none;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
 }
 
 .composer-text {
-  min-height: 44px;
+  min-height: 38px;
   max-height: 92px;
-  padding: 0.55rem 0.65rem;
+  padding: 0.45rem 0.55rem;
   resize: none;
 }
 
 .composer.text-mode .composer-text {
-  min-height: 86px;
+  min-height: 72px;
 }
 
 .composer.poll-mode .composer-text {
-  min-height: 38px;
-  height: 38px;
+  min-height: 34px;
+  height: 34px;
 }
 
 .composer-options input {
-  min-height: 38px;
-  padding: 0.5rem 0.65rem;
+  min-height: 34px;
+  padding: 0.4rem 0.55rem;
 }
 
 .send-button {
-  width: 42px;
-  min-height: 42px;
+  width: 38px;
+  min-height: 38px;
   padding: 0;
 }
 
 .option-grid {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .option-grid button {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  min-height: 42px;
+  min-height: 36px;
   border-radius: 6px;
-  padding: 0.5rem 0.7rem;
+  padding: 0.4rem 0.55rem;
   background: #e8eef5;
   color: #17212b;
 }
@@ -1046,6 +1115,14 @@ code {
 @media (max-width: 860px) {
   body {
     overflow: hidden;
+    font-size: 13px;
+  }
+
+  input,
+  select,
+  textarea {
+    padding: 0.42rem 0.5rem;
+    border-radius: 5px;
   }
 
   .workspace {
@@ -1099,11 +1176,98 @@ code {
   }
 
   .page {
-    padding: 0.65rem;
+    padding: 0.48rem;
   }
 
   .panel {
-    padding: 0.75rem;
+    padding: 0.55rem;
+  }
+
+  .stack,
+  .sidebar-page {
+    gap: 0.42rem;
+  }
+
+  .primary,
+  .secondary,
+  .ghost,
+  .link-button,
+  .icon-button,
+  .danger-button {
+    min-height: 34px;
+    padding: 0.38rem 0.55rem;
+  }
+
+  .nav-button {
+    min-height: 40px;
+  }
+
+  .nav-button svg {
+    width: 1.12rem;
+    height: 1.12rem;
+  }
+
+  .symbol-choice,
+  .color-swatch {
+    min-height: 34px;
+  }
+
+  .symbol-choice-icon {
+    font-size: 1.7rem;
+  }
+
+  .message-list {
+    padding: 0.45rem;
+    gap: 0.35rem;
+  }
+
+  .message-body {
+    padding: 0.35rem 0.45rem;
+  }
+
+  .message-line p,
+  .message-line h3 {
+    font-size: 0.88rem;
+  }
+
+  .compact-form-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .compact-form-row button {
+    padding-inline: 0.5rem;
+  }
+
+  .composer {
+    grid-template-columns: 40px minmax(0, 1fr) 34px;
+    gap: 0.3rem;
+    padding: 0.35rem;
+  }
+
+  .mode-toggle {
+    width: 40px;
+    min-height: 30px;
+    font-size: 0.74rem;
+  }
+
+  .composer-text {
+    min-height: 34px;
+    padding: 0.35rem 0.45rem;
+  }
+
+  .composer.text-mode .composer-text {
+    min-height: 58px;
+  }
+
+  .composer.poll-mode .composer-text,
+  .composer-options input {
+    min-height: 30px;
+    height: 30px;
+  }
+
+  .send-button {
+    width: 34px;
+    min-height: 34px;
   }
 
   .topbar {
