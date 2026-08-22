@@ -84,31 +84,50 @@ export function renderAuth() {
 function authForm() {
   const email = el('input', { type: 'email', placeholder: 'E-post', autocomplete: 'email', required: true });
   const password = el('input', { type: 'password', placeholder: 'Lösenord', autocomplete: 'current-password', required: true, minlength: '6' });
-  const mode = el('select', {}, [
-    el('option', { value: 'signin', text: 'Logga in' }),
-    el('option', { value: 'signup', text: 'Skapa konto' }),
-  ]);
+  let currentMode = 'signin';
+  const submitButton = el('button', { className: 'primary', type: 'submit' }, [icon('log-in', 'Logga in'), 'Fortsätt']);
+  const resetButton = el('button', { type: 'button', className: 'ghost', onClick: resetPassword }, [icon('key-round', 'Återställ'), 'Återställ lösenord']);
+  const signInTab = el('button', { type: 'button', className: 'auth-mode-button active', onClick: () => setMode('signin') }, 'Logga in');
+  const signUpTab = el('button', { type: 'button', className: 'auth-mode-button', onClick: () => setMode('signup') }, 'Skapa konto');
+  const modeHint = el('p', { className: 'auth-mode-hint', text: 'Logga in med ditt befintliga konto.' });
+
+  function setMode(nextMode) {
+    currentMode = nextMode;
+    const isSignup = currentMode === 'signup';
+    signInTab.classList.toggle('active', !isSignup);
+    signUpTab.classList.toggle('active', isSignup);
+    signInTab.setAttribute('aria-pressed', String(!isSignup));
+    signUpTab.setAttribute('aria-pressed', String(isSignup));
+    password.setAttribute('autocomplete', isSignup ? 'new-password' : 'current-password');
+    submitButton.replaceChildren(icon(isSignup ? 'user-plus' : 'log-in', isSignup ? 'Skapa konto' : 'Logga in'), isSignup ? 'Skapa konto' : 'Logga in');
+    resetButton.hidden = isSignup;
+    modeHint.textContent = isSignup
+      ? 'Skapa konto med e-post och lösenord. Du behöver bekräfta e-postmeddelandet innan du kan logga in.'
+      : 'Logga in med ditt befintliga konto.';
+    renderIcons();
+  }
+
   const submit = async (event) => {
     event.preventDefault();
     try {
       const client = requireSupabase();
       const credentials = { email: email.value.trim(), password: password.value };
       const result =
-        mode.value === 'signup'
+        currentMode === 'signup'
           ? await client.auth.signUp(credentials)
           : await client.auth.signInWithPassword(credentials);
       if (result.error) throw result.error;
-      if (mode.value === 'signup' && result.data?.user && Array.isArray(result.data.user.identities) && result.data.user.identities.length === 0) {
+      if (currentMode === 'signup' && result.data?.user && Array.isArray(result.data.user.identities) && result.data.user.identities.length === 0) {
         showToast('Det finns redan ett konto med den e-postadressen. Logga in eller återställ lösenordet.', 'warning');
         return;
       }
-      showToast(mode.value === 'signup' ? 'Det har skickats mail till e-postadressen du angav. Bekräfta i mailet för att kunna logga in.' : 'Du är inloggad.', 'success');
+      showToast(currentMode === 'signup' ? 'Det har skickats mail till e-postadressen du angav. Bekräfta i mailet för att kunna logga in.' : 'Du är inloggad.', 'success');
     } catch (error) {
       console.error(error);
-      showToast(mode.value === 'signup' ? 'Kunde inte skapa konto. Kontrollera e-postadressen.' : 'Inloggningen misslyckades. Kontrollera uppgifterna.', 'error');
+      showToast(currentMode === 'signup' ? 'Kunde inte skapa konto. Kontrollera e-postadressen.' : 'Inloggningen misslyckades. Kontrollera uppgifterna.', 'error');
     }
   };
-  const resetPassword = async () => {
+  async function resetPassword() {
     if (!email.value.trim()) {
       showToast('Ange e-post först.', 'warning');
       return;
@@ -123,13 +142,17 @@ function authForm() {
       console.error(error);
       showToast(friendlyError(error, 'Kunde inte skicka återställningslänk.'), 'error');
     }
-  };
-  return el('form', { className: 'stack', onSubmit: submit }, [
-    mode,
-    email,
-    password,
-    el('button', { className: 'primary', type: 'submit' }, [icon('log-in', 'Logga in'), 'Fortsätt']),
-    el('button', { type: 'button', className: 'ghost', onClick: resetPassword }, [icon('key-round', 'Återställ'), 'Återställ lösenord']),
+  }
+  setMode(currentMode);
+  return el('form', { className: 'auth-form', onSubmit: submit }, [
+    el('div', { className: 'auth-mode-tabs', role: 'group', 'aria-label': 'Välj inloggningsläge' }, [signInTab, signUpTab]),
+    el('div', { className: 'auth-form-body stack' }, [
+      modeHint,
+      email,
+      password,
+      submitButton,
+      resetButton,
+    ]),
   ]);
 }
 

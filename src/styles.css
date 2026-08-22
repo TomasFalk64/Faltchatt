@@ -261,6 +261,52 @@ code {
   font-size: 2rem;
 }
 
+.auth-form {
+  display: grid;
+  gap: 0;
+  margin-top: 0.85rem;
+}
+
+.auth-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+  gap: 0.25rem;
+}
+
+.auth-mode-button {
+  min-height: 38px;
+  border: 1px solid #c8d1dc;
+  border-bottom: 0;
+  border-radius: 7px 7px 0 0;
+  padding: 0.5rem 0.65rem;
+  background: #e8eef5;
+  color: #334155;
+  font-weight: 800;
+}
+
+.auth-mode-button.active {
+  position: relative;
+  z-index: 1;
+  background: #f7fbf8;
+  color: #146c43;
+  border-color: #9dc8ad;
+  box-shadow: inset 0 3px 0 #146c43;
+}
+
+.auth-form-body {
+  border: 1px solid #9dc8ad;
+  border-radius: 0 0 7px 7px;
+  padding: 0.75rem;
+  background: #f7fbf8;
+}
+
+.auth-mode-hint {
+  margin: 0;
+  color: #526170;
+  font-size: 0.9rem;
+}
+
 .page {
   width: 100%;
   margin: 0 auto;
