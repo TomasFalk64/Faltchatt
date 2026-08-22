@@ -46,7 +46,7 @@ export function symbolMarkup(symbolId) {
 function symbolSvg(id) {
   const common = 'viewBox="0 0 32 32" aria-hidden="true" focusable="false"';
   const svgs = {
-    hat: `<svg ${common}><path fill="currentColor" d="M9 17c.8-5.7 2.8-8.5 7-8.5s6.2 2.8 7 8.5h3.2c1.4 0 2.3.9 2.3 2.1 0 3-5.7 4.9-12.5 4.9S3.5 22.1 3.5 19.1c0-1.2.9-2.1 2.3-2.1H9Zm2.6 0h8.8c-.7-4-1.9-5.9-4.4-5.9s-3.7 1.9-4.4 5.9Zm-4.5 2.4c1.6 1.2 4.8 2 8.9 2s7.3-.8 8.9-2H7.1Z"/></svg>`,
+    hat: `<svg ${common}><path fill="currentColor" d="M9.2 7.2C9.4 5.8 12.2 5 16 5s6.6.8 6.8 2.2l-.7 11.1c2.8.5 5.3 1.4 6.8 2.5.8.6.8 1.5 0 2.1-2.2 1.8-7.3 3.1-12.9 3.1S5.3 24.7 3.1 22.9c-.8-.6-.8-1.5 0-2.1 1.5-1.1 4-2 6.8-2.5L9.2 7.2Zm2.2 10.7h9.2l.1-2.1h-9.4l.1 2.1Zm-5.6 3.8c2.4 1.2 6.2 1.9 10.2 1.9s7.8-.7 10.2-1.9c-1.3-.5-2.7-.9-4.3-1.2-.5 1.1-2.8 1.8-5.9 1.8s-5.4-.7-5.9-1.8c-1.6.3-3 .7-4.3 1.2Z"/></svg>`,
     tree: `<svg ${common}><path fill="currentColor" d="M16 3 7 15h5l-6 8h8v6h4v-6h8l-6-8h5L16 3Z"/></svg>`,
     leaf: `<svg ${common}><path fill="currentColor" d="M27 5C15.5 4.7 7.4 10 6.4 18.7c-.4 3.6 1.6 6.3 4.8 7.1 4.7 1.1 10.5-2.9 12.7-9.2C25.1 13 26 8.8 27 5Zm-4.7 4.1C18 16.9 14.3 21 9 24.4l-1.2-2c5-3.1 8.5-7 12.5-14l2 1.1Z"/></svg>`,
     mushroom: `<svg ${common}><path fill="currentColor" d="M4.7 15.9C5.6 9.1 10 5.8 16 5.8s10.4 3.3 11.3 10.1c.1.9-.6 1.7-1.5 1.7H6.2c-.9 0-1.6-.8-1.5-1.7Zm9 3.3h4.6l1 8c.2 1.4-.9 2.7-2.3 2.7h-2c-1.4 0-2.5-1.3-2.3-2.7l1-8Z"/></svg>`,
@@ -219,7 +219,7 @@ export function renderAppShell() {
 }
 
 function navButton(iconName, text, view) {
-  return el('button', { className: 'nav-button', 'data-view': view, title: text, 'aria-label': text, onClick: () => setView(view) }, [icon(iconName, text), el('span', { text }), el('i', { className: 'nav-badge', 'aria-hidden': 'true' })]);
+  return el('button', { className: 'nav-button', 'data-view': view, title: text, 'aria-label': text, 'data-tooltip': text, onClick: () => setView(view) }, [icon(iconName, text), el('span', { text }), el('i', { className: 'nav-badge', 'aria-hidden': 'true' })]);
 }
 
 export function setSessionPill() {

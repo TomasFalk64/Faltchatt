@@ -75,11 +75,11 @@ export function renderChat() {
   view.innerHTML = '';
   if (!appState.user) return;
   if (!appState.activeGroup) {
-    view.append(el('div', { className: 'page narrow' }, [el('p', { className: 'panel muted', text: 'Valj eller skapa en grupp forst.' })]));
+    view.append(el('div', { className: 'page narrow' }, [el('p', { className: 'panel muted', text: 'Välj grupp för att se chatt.' })]));
     return;
   }
   if (!isApprovedMember()) {
-    view.append(el('div', { className: 'page narrow' }, [el('p', { className: 'panel muted', text: 'Chatten oppnas nar medlemskapet ar godkant.' })]));
+    view.append(el('div', { className: 'page narrow' }, [el('p', { className: 'panel muted', text: 'Chatten öppnas när medlemskapet är godkänt.' })]));
     return;
   }
   const list = el('div', { id: 'chat-message-list', className: 'message-list' }, appState.messages.map((message) => renderMessage(message)));
@@ -265,7 +265,7 @@ function composer() {
   let mode = 'text';
   const modeToggle = el('button', { type: 'button', className: 'mode-toggle', text: 'Text' });
   const text = el('textarea', { className: 'composer-text', rows: '2', placeholder: 'Skriv meddelande' });
-  const options = el('input', { placeholder: 'Svarsalternativ, separera med kommatecken' });
+  const options = el('input', { placeholder: 'Alternativ, t.ex. kaffe, te, saft' });
   const optionsRow = el('div', { className: 'composer-options', hidden: true }, [options]);
   const inputStack = el('div', { className: 'composer-inputs' }, [text, optionsRow]);
   const form = el('form', { className: 'composer text-mode' });
@@ -273,8 +273,8 @@ function composer() {
   modeToggle.addEventListener('click', () => {
     mode = mode === 'text' ? 'question' : 'text';
     const isQuestion = mode === 'question';
-    modeToggle.textContent = isQuestion ? 'Poll' : 'Text';
-    text.placeholder = isQuestion ? 'Polltext' : 'Skriv meddelande';
+    modeToggle.textContent = isQuestion ? 'Fråga' : 'Text';
+    text.placeholder = isQuestion ? 'Frågetext, t.ex. Fika?' : 'Skriv meddelande';
     optionsRow.hidden = !isQuestion;
     form.classList.toggle('poll-mode', isQuestion);
     form.classList.toggle('text-mode', !isQuestion);

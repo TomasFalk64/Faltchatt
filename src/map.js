@@ -84,6 +84,7 @@ export function renderMapControls(onChanged) {
   view.innerHTML = '';
 
   const opacity = el('input', { type: 'range', min: '0', max: '100', value: String(Math.round(geotiffOpacity * 100)) });
+  const opacityControl = el('label', { id: 'geotiff-opacity-control', hidden: true }, ['Visa uppladdad karta', opacity]);
   const upload = el('input', { type: 'file', accept: '.tif,.tiff,image/tiff', className: 'visually-hidden-file' });
   const uploadButton = el('button', {
     type: 'button',
@@ -117,7 +118,7 @@ export function renderMapControls(onChanged) {
       el('section', { className: 'panel stack' }, [
         el('h2', { text: 'Karta' }),
         el('p', { className: 'muted', text: hasApprovedGroup ? 'OpenStreetMap visas alltid. Gruppkartor visas om de laddas upp.' : 'OpenStreetMap visas även utan grupp. Gruppkarta och platsmeddelanden kräver godkänd grupp.' }),
-        el('label', {}, ['GeoTIFF opacitet', opacity]),
+        opacityControl,
         canAdminGroup() ? el('div', { className: 'upload-control' }, [upload, uploadButton]) : null,
         mapList,
       ]),
@@ -141,9 +142,13 @@ function initMap() {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap contributors',
   }).addTo(map);
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: 'Tiles &copy; Esri',
+  });
   membersLayer = L.layerGroup().addTo(map);
   sentLocationsLayer = L.layerGroup().addTo(map);
-  L.control.layers({ OpenStreetMap: osm }, { Gruppmedlemmar: membersLayer, 'Skickade platser': sentLocationsLayer }, { collapsed: true }).addTo(map);
+  L.control.layers({ OpenStreetMap: osm, Satellit: satellite }, { Gruppmedlemmar: membersLayer, 'Skickade platser': sentLocationsLayer }, { collapsed: true }).addTo(map);
   map.on('click', (event) => updateCoordinateReadout(event.latlng));
   map.on('contextmenu', (event) => openSendLocationPanel(event.latlng));
   if (lastOwnPosition) {
@@ -193,10 +198,12 @@ async function renderGroupMapList(onChanged) {
         ? el('div', { className: 'map-file-items' }, groupGeoTiffs.map((mapFile) => mapFileRow(mapFile, onChanged)))
         : el('p', { className: 'muted', text: 'Inga GeoTIFF-kartor uppladdade ännu.' }),
     );
+    updateGeoTiffOpacityControl();
     renderIcons();
   } catch (error) {
     console.error(error);
     container.replaceChildren(el('p', { className: 'warning-text', text: friendlyError(error, 'Kunde inte läsa kartlistan.') }));
+    updateGeoTiffOpacityControl();
   }
 }
 
@@ -208,6 +215,7 @@ function mapFileRow(mapFile, onChanged) {
     else hiddenGeoTiffPaths.add(mapFile.path);
     saveHiddenGeoTiffs();
     await refreshMapLayers();
+    updateGeoTiffOpacityControl();
   });
 
   return el('div', { className: 'map-file-row' }, [
@@ -230,6 +238,7 @@ function mapFileRow(mapFile, onChanged) {
               await refreshGroupGeoTiffList(true);
               await refreshMapLayers();
               await renderGroupMapList(onChanged);
+              updateGeoTiffOpacityControl();
               showToast('Kartan togs bort.', 'success');
             } catch (error) {
               console.error(error);
@@ -239,6 +248,12 @@ function mapFileRow(mapFile, onChanged) {
         }, [icon('x', 'Ta bort')])
       : null,
   ]);
+}
+
+function updateGeoTiffOpacityControl() {
+  const control = document.querySelector('#geotiff-opacity-control');
+  if (!control) return;
+  control.hidden = visibleGeoTiffPaths().length === 0;
 }
 
 async function refreshGroupGeoTiffList(force = false) {
