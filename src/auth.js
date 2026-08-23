@@ -228,6 +228,33 @@ export function renderProfile() {
     await requireSupabase().auth.signOut();
   };
 
+  const deleteAccount = async () => {
+    const email = appState.user.email || '';
+    const confirmed = window.confirm(
+      'Ta bort ditt konto permanent?\n\nDet går inte att ångra. Du lämnar alla grupper. Om du är owner flyttas ägarskap till annan medlem när det finns någon, annars tas tomma grupper bort.',
+    );
+    if (!confirmed) return;
+    const typedEmail = window.prompt(`Skriv din e-postadress för att bekräfta:\n${email}`);
+    if (typedEmail === null) return;
+    if (typedEmail.trim().toLowerCase() !== email.trim().toLowerCase()) {
+      showToast('E-postadressen matchar inte kontot.', 'warning');
+      return;
+    }
+    try {
+      await clearOwnLocation();
+      await clearOwnPresence();
+      const { error } = await requireSupabase().functions.invoke('delete-my-account', {
+        body: { confirmEmail: typedEmail.trim() },
+      });
+      if (error) throw error;
+      await requireSupabase().auth.signOut().catch(() => {});
+      showToast('Kontot togs bort.', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast(accountDeleteError(error), 'error');
+    }
+  };
+
   const getSelectedSymbol = () => SYMBOLS.find((item) => item.id === selectedSymbol) || SYMBOLS[0];
   const previewGlyph = symbolNode(getSelectedSymbol().id, 'profile-symbol-preview');
   previewGlyph.style.color = selectedColor;
@@ -277,10 +304,23 @@ export function renderProfile() {
         el('label', { className: 'toggle-row' }, [shareToggle, el('span', { text: 'Visa och dela min position' })]),
         el('button', { className: 'primary', type: 'submit' }, [icon('save', 'Spara'), 'Spara profil']),
         el('button', { className: 'ghost', type: 'button', onClick: signOut }, [icon('log-out', 'Logga ut'), 'Logga ut']),
+        el('button', { className: 'danger-button', type: 'button', onClick: deleteAccount }, [icon('user-x', 'Ta bort konto'), 'Ta bort mitt konto']),
       ]),
     ]),
   );
   renderIcons();
+}
+
+function accountDeleteError(error) {
+  const message = error?.message || '';
+  const name = error?.name || '';
+  if (name === 'FunctionsFetchError' || message.includes('Failed to send a request to the Edge Function')) {
+    return 'Kunde inte nå kontoraderingsfunktionen. Kontrollera att Supabase Edge Function "delete-my-account" är deployad.';
+  }
+  if (name === 'FunctionsHttpError') {
+    return 'Kontoraderingsfunktionen svarade med fel. Kontrollera Edge Function-loggen i Supabase.';
+  }
+  return friendlyError(error, 'Kunde inte ta bort kontot.');
 }
 
 function passwordRecoveryForm() {

@@ -40,6 +40,7 @@ Om du använder SQL Editor i Dashboard, kör filerna i denna ordning:
 18. `supabase/migrations/018_group_invites.sql`
 19. `supabase/migrations/019_locations_delete_own.sql`
 20. `supabase/migrations/020_group_presence.sql`
+21. `supabase/migrations/021_delete_account_cleanup.sql`
 
 ## 3. Authentication
 
@@ -82,19 +83,21 @@ Gruppadministrationens knapp `Skicka e-post till gruppen` använder Supabase Edg
 
 ```text
 supabase/functions/send-group-email
+supabase/functions/delete-my-account
 ```
 
 Deploya funktionen och sätt följande secrets i Supabase:
 
 ```bash
 supabase functions deploy send-group-email
+supabase functions deploy delete-my-account
 supabase secrets set BREVO_API_KEY=din_brevo_api_key
 supabase secrets set BREVO_SENDER_EMAIL=avsandare@example.com
 supabase secrets set BREVO_SENDER_NAME=Fältchatt
 supabase secrets set FALTCHATT_APP_URL=https://tomasfalk64.github.io/Faltchatt/
 ```
 
-`SUPABASE_URL` och `SUPABASE_SERVICE_ROLE_KEY` finns normalt redan i Edge Function-miljön. Lägg aldrig service role key eller Brevo-nycklar i frontend eller `.env.local`.
+`delete-my-account` använder bara `SUPABASE_URL` och `SUPABASE_SERVICE_ROLE_KEY`, som normalt redan finns i Edge Function-miljön. Lägg aldrig service role key eller Brevo-nycklar i frontend eller `.env.local`.
 
 Om appen visar `Failed to send a request to the Edge Function` betyder det oftast att `send-group-email` inte är deployad i Supabase-projektet, eller att Edge Function-miljön saknar någon av secrets ovan. Kontrollera även Function Logs i Supabase Dashboard.
 
