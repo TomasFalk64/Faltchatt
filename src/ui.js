@@ -175,6 +175,7 @@ export function renderAppShell() {
     el('div', { className: 'app-shell' }, [
       el('header', { className: 'topbar' }, [
         el('div', { className: 'brand' }, [el('span', { className: 'brand-mark', text: 'F' }), el('span', { text: 'Fältchatt' })]),
+        el('div', { id: 'topbar-map-title', className: 'topbar-map-title' }),
         el('div', { id: 'session-pill', className: 'session-pill' }),
       ]),
       el('main', { className: 'workspace' }, [
@@ -228,4 +229,8 @@ export function setSessionPill() {
   const pill = document.querySelector('#session-pill');
   if (!pill) return;
   pill.textContent = appState.user ? appState.profile?.alias || appState.user.email : 'Inte inloggad';
+  const mapTitle = document.querySelector('#topbar-map-title');
+  if (!mapTitle) return;
+  mapTitle.textContent = appState.activeGroup?.name || 'Ingen grupp';
+  mapTitle.title = mapTitle.textContent;
 }

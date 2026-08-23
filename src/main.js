@@ -80,6 +80,7 @@ async function refreshGroupsIfChanged() {
   await refreshMapLayers();
   syncPresenceAndSharing();
   refreshGroupDynamics(handleUserChange);
+  setSessionPill();
   updateNavBadges();
   renderIcons();
 }
