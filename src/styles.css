@@ -1006,6 +1006,12 @@ code {
   cursor: not-allowed;
 }
 
+.signout-button {
+  border: 1px solid #fca5a5;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .toggle-row {
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -1212,6 +1218,11 @@ code {
 
 .member-map-icon.faded {
   opacity: 0.55;
+}
+
+.member-map-icon.inactive,
+.own-map-icon.inactive {
+  opacity: 0.45;
 }
 
 .member-map-icon.old {

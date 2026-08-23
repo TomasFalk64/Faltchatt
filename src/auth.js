@@ -303,7 +303,7 @@ export function renderProfile() {
         el('label', { className: 'toggle-row' }, [showPhone, el('span', { text: 'Visa mobilnummer för gruppmedlemmar' })]),
         el('label', { className: 'toggle-row' }, [shareToggle, el('span', { text: 'Visa och dela min position' })]),
         el('button', { className: 'primary', type: 'submit' }, [icon('save', 'Spara'), 'Spara profil']),
-        el('button', { className: 'ghost', type: 'button', onClick: signOut }, [icon('log-out', 'Logga ut'), 'Logga ut']),
+        el('button', { className: 'danger-button signout-button', type: 'button', onClick: signOut }, [icon('log-out', 'Logga ut'), 'Logga ut']),
         el('button', { className: 'danger-button', type: 'button', onClick: deleteAccount }, [icon('user-x', 'Ta bort konto'), 'Ta bort mitt konto']),
       ]),
     ]),

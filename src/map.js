@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { appState } from './state.js';
+import { appState, presenceForUser } from './state.js';
 import { canAdminGroup, isApprovedMember } from './groups.js';
 import { refreshChatMessages, sendMessage } from './chat.js';
 import { deleteGroupGeoTiff, listGroupGeoTiffs, loadGeoTiffLayers, removeGeoTiffLayers, setGeoTiffOpacity, uploadGroupGeoTiff } from './geotiff.js';
@@ -588,10 +588,11 @@ function sentLocationVisibilityKey() {
 function memberIcon(userId, updatedAt, own = false) {
   const age = Date.now() - new Date(updatedAt).getTime();
   const ageClass = age > FADED_LOCATION_MS ? 'faded' : 'fresh';
+  const activeClass = presenceForUser(userId) ? 'active' : 'inactive';
   const symbol = memberSymbolId(userId);
   const color = memberColor(userId);
   return L.divIcon({
-    className: `${own ? 'own-map-icon' : 'member-map-icon'} ${ageClass}`,
+    className: `${own ? 'own-map-icon' : 'member-map-icon'} ${ageClass} ${activeClass}`,
     html: `<span style="color:${escapeHtml(color)}">${symbolMarkup(symbol)}</span>`,
     iconSize: own ? [34, 34] : [30, 30],
     iconAnchor: own ? [17, 17] : [15, 15],
