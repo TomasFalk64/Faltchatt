@@ -1096,10 +1096,10 @@ code {
   pointer-events: auto;
 }
 
-.map-position-check-button {
+.map-position-check-button,
+.map-center-members-button {
   position: absolute;
   top: 0.5rem;
-  left: calc(50% + 4.65rem);
   z-index: 461;
   display: inline-grid;
   place-items: center;
@@ -1115,7 +1115,16 @@ code {
   line-height: 1;
 }
 
-.map-position-check-button svg {
+.map-position-check-button {
+  left: calc(50% + 4.65rem);
+}
+
+.map-center-members-button {
+  right: calc(50% + 4.65rem);
+}
+
+.map-position-check-button svg,
+.map-center-members-button svg {
   width: 1rem;
   height: 1rem;
 }
@@ -1662,7 +1671,8 @@ code {
     top: 0.35rem;
   }
 
-  .map-position-check-button {
+  .map-position-check-button,
+  .map-center-members-button {
     top: 0.35rem;
   }
 }

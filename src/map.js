@@ -87,6 +87,13 @@ export async function renderMapView(onChanged) {
         'aria-label': 'synka allt nu',
         onClick: () => syncAllNow(onChanged),
       }, ['↻']),
+      el('button', {
+        type: 'button',
+        className: 'map-center-members-button',
+        title: 'Visa gruppmedlemmar på kartan',
+        'aria-label': 'Visa gruppmedlemmar på kartan',
+        onClick: centerVisibleMembers,
+      }, [icon('scan', 'Centrera')]),
       el('div', { id: 'map-send-panel', className: 'map-send-panel', hidden: true }),
     ]),
   );
@@ -624,6 +631,29 @@ async function syncAllNow(onChanged) {
     console.error(error);
     showToast(friendlyError(error, 'Kunde inte synka gruppen.'), 'error');
   }
+}
+
+function centerVisibleMembers() {
+  if (!map) return;
+  const markers = [...memberMarkers.values(), ...memberClusterMarkers.values()].filter((marker) => map.hasLayer(marker));
+  if (!markers.length) {
+    showToast('Inga synliga gruppmedlemmar på kartan.', 'info');
+    return;
+  }
+  if (markers.length === 1) {
+    const latLng = markers[0].getLatLng();
+    setMapView([latLng.lat, latLng.lng], Math.max(map.getZoom(), 15));
+    return;
+  }
+  const bounds = L.latLngBounds(markers.map((marker) => marker.getLatLng()));
+  programmaticMapMove = true;
+  map.fitBounds(bounds.pad(0.25), {
+    maxZoom: 16,
+    padding: [28, 28],
+  });
+  window.setTimeout(() => {
+    programmaticMapMove = false;
+  }, 250);
 }
 
 function checkPositionOnce() {
