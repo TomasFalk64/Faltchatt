@@ -181,15 +181,11 @@ export async function refreshMapLayers() {
     setTimeout(() => map.invalidateSize(), 80);
     return;
   }
-  appState.locations.filter(shouldShowMemberOnMap).forEach((location) => {
-    if (location.user_id === appState.user.id) return;
-    const marker = L.marker([location.latitude, location.longitude], { icon: memberIcon(location.user_id, location.updated_at) });
-    const name = '';
-    marker.bindPopup(`${name}Senast uppdaterad: ${formatRelative(location.updated_at)}<br>Noggrannhet: ±${Math.round(location.accuracy || 0)} m`);
-    marker.bindPopup(memberPopup(location.user_id, location));
-    bindMemberPopup(marker, location.user_id, () => location);
-    marker.addTo(membersLayer);
-  });
+  if (ownMarker && appState.locations.some((location) => location.user_id === appState.user?.id && shouldShowMemberOnMap(location))) {
+    ownMarker.remove();
+    ownMarker = null;
+  }
+  renderMemberLocationMarkers();
   renderSentLocationMarkers();
   await refreshGroupGeoTiffList();
   await loadGeoTiffLayers(map, visibleGeoTiffPaths(), geotiffOpacity);
@@ -339,6 +335,113 @@ function memberPopup(userId, location) {
   ]);
 }
 
+function renderMemberLocationMarkers() {
+  const groups = groupNearbyMemberLocations(appState.locations.filter(shouldShowMemberOnMap));
+  groups.forEach((group) => {
+    if (group.length > 5) {
+      const marker = L.marker(groupCenter(group), { icon: memberClusterIcon() });
+      marker.bindPopup(memberClusterPopup(group));
+      marker.on('popupopen', () => bindMemberClusterPopup(marker, group));
+      marker.addTo(membersLayer);
+      return;
+    }
+    memberOffsets(group.length).forEach((offset, index) => {
+      const location = group[index];
+      const marker = L.marker(offsetLatLng(location, offset), {
+        icon: memberIcon(location.user_id, location.updated_at, location.user_id === appState.user?.id),
+      });
+      bindMemberPopup(marker, location.user_id, () => location);
+      marker.addTo(membersLayer);
+    });
+  });
+}
+
+function groupNearbyMemberLocations(locations) {
+  const groups = [];
+  const thresholdPx = 18;
+  locations.forEach((location) => {
+    const point = map.latLngToLayerPoint([location.latitude, location.longitude]);
+    const group = groups.find((item) => item.center.distanceTo(point) <= thresholdPx);
+    if (group) {
+      group.items.push(location);
+      group.center = averageLayerPoint(group.items);
+    } else {
+      groups.push({ center: point, items: [location] });
+    }
+  });
+  return groups.map((group) => group.items);
+}
+
+function averageLayerPoint(locations) {
+  const total = locations.reduce((sum, location) => {
+    const point = map.latLngToLayerPoint([location.latitude, location.longitude]);
+    return { x: sum.x + point.x, y: sum.y + point.y };
+  }, { x: 0, y: 0 });
+  return L.point(total.x / locations.length, total.y / locations.length);
+}
+
+function groupCenter(group) {
+  return map.layerPointToLatLng(averageLayerPoint(group));
+}
+
+function offsetLatLng(location, offset) {
+  if (!offset.x && !offset.y) return [location.latitude, location.longitude];
+  const point = map.latLngToLayerPoint([location.latitude, location.longitude]);
+  return map.layerPointToLatLng([point.x + offset.x, point.y + offset.y]);
+}
+
+function memberOffsets(count) {
+  if (count <= 1) return [{ x: 0, y: 0 }];
+  const radius = count === 2 ? 8 : 10;
+  const startAngle = count === 2 ? Math.PI : -Math.PI / 2;
+  return Array.from({ length: count }, (_, index) => {
+    const angle = startAngle + (index * 2 * Math.PI) / count;
+    return { x: Math.round(Math.cos(angle) * radius), y: Math.round(Math.sin(angle) * radius) };
+  });
+}
+
+function memberClusterIcon() {
+  return L.divIcon({
+    className: 'member-cluster-icon',
+    html: '<span>∞</span>',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+}
+
+function memberClusterPopup(group) {
+  return el('div', { className: 'member-cluster-popup' }, [
+    el('div', { className: 'member-cluster-title', text: 'Flera personer här' }),
+    el('div', { className: 'member-cluster-symbols' }, group.map((location) => memberClusterButton(location))),
+  ]);
+}
+
+function memberClusterButton(location) {
+  return el('button', {
+    type: 'button',
+    className: 'member-cluster-symbol',
+    title: memberName(location.user_id),
+    'data-user-id': location.user_id,
+  }, [
+    el('span', {
+      html: symbolMarkup(memberSymbolId(location.user_id)),
+      style: `color:${memberColor(location.user_id)}`,
+    }),
+  ]);
+}
+
+function bindMemberClusterPopup(marker, group) {
+  const popupElement = marker.getPopup()?.getElement();
+  if (!popupElement) return;
+  popupElement.querySelectorAll('.member-cluster-symbol').forEach((button) => {
+    button.addEventListener('click', () => {
+      const location = group.find((item) => item.user_id === button.dataset.userId);
+      if (!location) return;
+      marker.setPopupContent(memberPopup(location.user_id, location));
+    });
+  });
+}
+
 function bindMemberPopup(marker, userId, getLocation) {
   marker.bindPopup(memberPopup(userId, getLocation()));
   marker.off('popupopen');
@@ -406,16 +509,16 @@ function sentLocationVisibilityKey() {
   return `faltchatt.hiddenSentLocations.${appState.activeGroupId || 'none'}`;
 }
 
-function memberIcon(userId, updatedAt) {
+function memberIcon(userId, updatedAt, own = false) {
   const minutes = (Date.now() - new Date(updatedAt).getTime()) / 60000;
   const ageClass = minutes > 10 ? 'old' : minutes > 2 ? 'faded' : 'fresh';
   const symbol = memberSymbolId(userId);
   const color = memberColor(userId);
   return L.divIcon({
-    className: `member-map-icon ${ageClass}`,
+    className: `${own ? 'own-map-icon' : 'member-map-icon'} ${ageClass}`,
     html: `<span style="color:${escapeHtml(color)}">${symbolMarkup(symbol)}</span>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
+    iconSize: own ? [34, 34] : [30, 30],
+    iconAnchor: own ? [17, 17] : [15, 15],
   });
 }
 

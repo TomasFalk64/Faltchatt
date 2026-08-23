@@ -350,6 +350,12 @@ code {
   padding-top: 0.52rem;
 }
 
+.create-group-section {
+  border-top-width: 3px;
+  border-top-color: #bac8d6;
+  padding-top: 0.62rem;
+}
+
 .subsection h3,
 .panel h2 {
   margin: 0;
@@ -527,6 +533,7 @@ code {
 .member-list {
   display: grid;
   gap: 0;
+  min-height: 94px;
   max-height: 166px;
   overflow-x: visible;
   overflow-y: auto;
@@ -1116,6 +1123,66 @@ code {
 .member-popup a {
   color: #155e75;
   word-break: break-word;
+}
+
+.member-cluster-popup {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.member-cluster-title {
+  font-weight: 800;
+}
+
+.member-cluster-symbols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  max-width: 170px;
+}
+
+.member-cluster-symbol {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  min-height: 30px;
+  border: 1px solid #d0d8e2;
+  border-radius: 999px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: none;
+}
+
+.member-cluster-symbol span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.member-cluster-symbol svg {
+  width: 72%;
+  height: 72%;
+}
+
+.member-cluster-icon {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid #64748b;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 4px 12px rgba(20, 33, 45, 0.28);
+}
+
+.member-cluster-icon span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #334155;
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .member-map-icon {

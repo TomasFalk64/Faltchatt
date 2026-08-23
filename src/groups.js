@@ -241,7 +241,7 @@ function createGroupForm(onChanged) {
       showToast(friendlyError(error, 'Kunde inte skapa grupp.'), 'error');
     }
   };
-  return el('form', { className: 'stack subsection', onSubmit: submit }, [
+  return el('form', { className: 'stack subsection create-group-section', onSubmit: submit }, [
     el('h3', { text: 'Skapa grupp' }),
     el('div', { className: 'compact-form-row' }, [
       input,

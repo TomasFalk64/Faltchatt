@@ -1,7 +1,7 @@
 import './styles.css';
 import { isSupabaseConfigured } from './supabase.js';
 import { initAuth, renderAuth, renderProfile, setAuthChangeHandler } from './auth.js';
-import { loadGroups, loadInvites, loadMembers, loadPresence, refreshGroupDynamics, refreshMemberList, renderAdmin, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
+import { loadGroups, loadPresence, refreshGroupDynamics, refreshMemberList, renderAdmin, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
 import { loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
 import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, startPresenceHeartbeat, startSharing, stopPresenceHeartbeat, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
 import { appState, setActiveGroupId } from './state.js';
@@ -57,9 +57,7 @@ async function reloadAll() {
     });
     subscribeGroups(refreshGroupsIfChanged);
     renderAll();
-    if (appState.activeGroup && appState.memberships.some((member) => member.group_id === appState.activeGroupId && member.status === 'approved')) startPresenceHeartbeat();
-    else stopPresenceHeartbeat();
-    if (appState.locationSharingEnabled) startSharing();
+    syncPresenceAndSharing();
   } catch (error) {
     console.error(error);
     showToast('Något gick fel vid laddning. Kontrollera nätverk och Supabase-inställningar.', 'error');
@@ -73,6 +71,7 @@ async function refreshGroupsIfChanged() {
   if (groupStateSignature() === before) return;
   await Promise.all([refreshChatMessages(), loadLocations(), loadPresence()]);
   await refreshMapLayers();
+  syncPresenceAndSharing();
   refreshGroupDynamics(handleUserChange);
   updateNavBadges();
   renderIcons();
@@ -112,9 +111,13 @@ function renderAll() {
 }
 
 async function handleUserChange() {
-  await loadGroups();
-  await Promise.all([loadMembers(), loadInvites(), loadPresence(), loadChatData(), loadLocations()]);
-  renderAll();
+  await reloadAll();
+}
+
+function syncPresenceAndSharing() {
+  if (appState.activeGroup && appState.memberships.some((member) => member.group_id === appState.activeGroupId && member.status === 'approved')) startPresenceHeartbeat();
+  else stopPresenceHeartbeat();
+  if (appState.locationSharingEnabled) startSharing();
 }
 
 bootstrap();
