@@ -727,12 +727,12 @@ function shouldShowMemberOnMap(location) {
   if (Date.now() - new Date(location.updated_at).getTime() > HIDDEN_LOCATION_MS) return false;
   const member = appState.members.find((item) => item.user_id === location.user_id && item.status === 'approved');
   if (!member) return false;
-  const presence = appState.presence.find((item) => item.user_id === location.user_id);
-  return Boolean(presence?.is_sharing_location);
+  if (location.user_id === appState.user?.id) return Boolean(appState.locationSharingEnabled);
+  return true;
 }
 
 function shouldUseGroupOwnMarker() {
-  return Boolean(appState.activeGroupId && appState.user && appState.locationSharingEnabled && isApprovedMember());
+  return Boolean(appState.activeGroupId && appState.user && appState.locationSharingEnabled);
 }
 
 async function handlePosition(position) {
@@ -780,11 +780,25 @@ async function handlePosition(position) {
     );
     if (error) throw error;
     updateOwnLocationState({ latitude, longitude, accuracy, heading, speed, updatedAt });
+    updateOwnPresenceState();
     await refreshMapLayers();
   } catch (error) {
     console.error(error);
     showToast(friendlyError(error, 'Kunde inte dela positionen.'), 'error');
   }
+}
+
+function updateOwnPresenceState() {
+  if (!appState.activeGroupId || !appState.user) return;
+  const row = {
+    group_id: appState.activeGroupId,
+    user_id: appState.user.id,
+    last_seen: new Date().toISOString(),
+    is_sharing_location: appState.locationSharingEnabled,
+  };
+  const index = appState.presence.findIndex((presence) => presence.group_id === row.group_id && presence.user_id === row.user_id);
+  if (index >= 0) appState.presence[index] = { ...appState.presence[index], ...row };
+  else appState.presence.push(row);
 }
 
 function updateOwnLocationState({ latitude, longitude, accuracy, heading, speed, updatedAt }) {
