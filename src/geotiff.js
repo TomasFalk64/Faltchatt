@@ -59,7 +59,7 @@ export async function deleteGroupGeoTiff(path) {
   }
 }
 
-export async function loadGeoTiffLayers(map, paths = [], opacity = 0.8) {
+export async function loadGeoTiffLayers(map, paths = [], opacity = 0.8, options = {}) {
   const wantedPaths = new Set(paths);
   [...rasterLayers.keys()].forEach((path) => {
     if (!wantedPaths.has(path)) removeGeoTiffPath(path, map);
@@ -68,13 +68,13 @@ export async function loadGeoTiffLayers(map, paths = [], opacity = 0.8) {
 
   const loaded = [];
   for (const path of paths) {
-    const layer = await loadGeoTiffPath(map, path, opacity);
+    const layer = await loadGeoTiffPath(map, path, opacity, options);
     if (layer) loaded.push(layer);
   }
   return loaded;
 }
 
-async function loadGeoTiffPath(map, path, opacity = 0.8) {
+async function loadGeoTiffPath(map, path, opacity = 0.8, options = {}) {
   if (rasterLayers.has(path)) {
     const layer = rasterLayers.get(path);
     layer.setOpacity(opacity);
@@ -98,7 +98,7 @@ async function loadGeoTiffPath(map, path, opacity = 0.8) {
     });
     rasterLayers.set(path, rasterLayer);
     rasterLayer.addTo(map);
-    map.fitBounds(rasterLayer.getBounds());
+    if (options.fitBounds) map.fitBounds(rasterLayer.getBounds());
     return rasterLayer;
   } catch (error) {
     console.error(error);

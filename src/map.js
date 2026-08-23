@@ -26,6 +26,10 @@ let groupGeoTiffs = [];
 let groupGeoTiffsLoadedFor = null;
 let hiddenGeoTiffPaths = new Set();
 let hiddenSentLocationsLoadedFor = null;
+let lastAutoFitGroupId = null;
+let userAdjustedMapView = false;
+let programmaticMapMove = false;
+let autoCenteredOwnPosition = false;
 const FADED_LOCATION_MS = 10 * 60 * 1000;
 const HIDDEN_LOCATION_MS = 60 * 60 * 1000;
 
@@ -150,7 +154,8 @@ function initMap() {
   ownMarker = null;
   const initialCenter = lastOwnPosition ? [lastOwnPosition.latitude, lastOwnPosition.longitude] : previousView?.center || [59.3293, 18.0686];
   const initialZoom = lastOwnPosition ? Math.max(previousView?.zoom || 0, 15) : previousView?.zoom || 12;
-  map = L.map('map', { zoomControl: true }).setView(initialCenter, initialZoom);
+  map = L.map('map', { zoomControl: true });
+  setMapView(initialCenter, initialZoom);
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap contributors',
@@ -166,10 +171,26 @@ function initMap() {
   L.control.layers({ OpenStreetMap: osm, Satellit: satellite }, { Gruppmedlemmar: membersLayer, 'Skickade platser': sentLocationsLayer }, { collapsed: true }).addTo(map);
   map.on('click', (event) => updateCoordinateReadout(event.latlng));
   map.on('contextmenu', (event) => openSendLocationPanel(event.latlng));
-  if (lastOwnPosition) {
+  map.on('moveend zoomend', () => {
+    if (programmaticMapMove) return;
+    userAdjustedMapView = true;
+  });
+  if (lastOwnPosition && !shouldUseGroupOwnMarker()) {
     ownMarker = L.marker([lastOwnPosition.latitude, lastOwnPosition.longitude], { icon: ownPositionIcon() }).addTo(map);
     bindMemberPopup(ownMarker, appState.user.id, () => lastOwnPosition);
   }
+}
+
+function setMapView(center, zoom) {
+  programmaticMapMove = true;
+  map.setView(center, zoom);
+  window.setTimeout(() => {
+    programmaticMapMove = false;
+  }, 250);
+}
+
+function shouldFitGroupMap() {
+  return Boolean(appState.activeGroupId && appState.activeGroupId !== lastAutoFitGroupId && !userAdjustedMapView);
 }
 
 export async function refreshMapLayers() {
@@ -180,6 +201,10 @@ export async function refreshMapLayers() {
   }
   loadHiddenSentLocations();
   sentLocationsLayer.clearLayers();
+  if (shouldUseGroupOwnMarker() && ownMarker) {
+    ownMarker.remove();
+    ownMarker = null;
+  }
   if (!appState.activeGroup || !isApprovedMember()) {
     clearMemberMarkers();
     removeGeoTiffLayers(map);
@@ -187,14 +212,11 @@ export async function refreshMapLayers() {
     setTimeout(() => map.invalidateSize(), 80);
     return;
   }
-  if (ownMarker && appState.locations.some((location) => location.user_id === appState.user?.id && shouldShowMemberOnMap(location))) {
-    ownMarker.remove();
-    ownMarker = null;
-  }
   renderMemberLocationMarkers();
   renderSentLocationMarkers();
   await refreshGroupGeoTiffList();
-  await loadGeoTiffLayers(map, visibleGeoTiffPaths(), geotiffOpacity);
+  await loadGeoTiffLayers(map, visibleGeoTiffPaths(), geotiffOpacity, { fitBounds: shouldFitGroupMap() });
+  lastAutoFitGroupId = appState.activeGroupId || null;
   focusRequestedLocation();
   setTimeout(() => map.invalidateSize(), 80);
 }
@@ -709,6 +731,10 @@ function shouldShowMemberOnMap(location) {
   return Boolean(presence?.is_sharing_location);
 }
 
+function shouldUseGroupOwnMarker() {
+  return Boolean(appState.activeGroupId && appState.user && appState.locationSharingEnabled && isApprovedMember());
+}
+
 async function handlePosition(position) {
   const { latitude, longitude, accuracy, heading, speed } = position.coords;
   lastOwnPosition = { latitude, longitude, accuracy, updatedAt: Date.now() };
@@ -716,11 +742,21 @@ async function handlePosition(position) {
     lastPositionLogAt = Date.now();
     logEvent(`GPS WGS84: lat ${latitude.toFixed(6)}, lon ${longitude.toFixed(6)}, noggrannhet ±${Math.round(accuracy || 0)} m.`, 'info');
   }
-  if (map && !ownMarker) map.setView([latitude, longitude], 15);
-  if (ownMarker) ownMarker.setLatLng([latitude, longitude]);
-  else ownMarker = L.marker([latitude, longitude], { icon: ownPositionIcon() }).addTo(map);
-  ownMarker.setIcon(ownPositionIcon());
-  bindMemberPopup(ownMarker, appState.user.id, () => lastOwnPosition);
+  if (shouldUseGroupOwnMarker()) {
+    if (ownMarker) {
+      ownMarker.remove();
+      ownMarker = null;
+    }
+  } else {
+    if (map && !ownMarker && !userAdjustedMapView && !autoCenteredOwnPosition) {
+      setMapView([latitude, longitude], 15);
+      autoCenteredOwnPosition = true;
+    }
+    if (ownMarker) ownMarker.setLatLng([latitude, longitude]);
+    else ownMarker = L.marker([latitude, longitude], { icon: ownPositionIcon() }).addTo(map);
+    ownMarker.setIcon(ownPositionIcon());
+    bindMemberPopup(ownMarker, appState.user.id, () => lastOwnPosition);
+  }
 
   const moved = lastSent.lat === null || distanceMeters(lastSent.lat, lastSent.lng, latitude, longitude) > 15;
   const enoughTime = Date.now() - lastSent.at > 10000;
@@ -728,6 +764,7 @@ async function handlePosition(position) {
   lastSent = { at: Date.now(), lat: latitude, lng: longitude };
   if (!appState.activeGroupId || !isApprovedMember()) return;
   try {
+    const updatedAt = new Date().toISOString();
     const { error } = await requireSupabase().from('locations').upsert(
       {
         group_id: appState.activeGroupId,
@@ -737,15 +774,34 @@ async function handlePosition(position) {
         accuracy,
         heading: Number.isFinite(heading) ? heading : null,
         speed: Number.isFinite(speed) ? speed : null,
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt,
       },
       { onConflict: 'group_id,user_id' },
     );
     if (error) throw error;
+    updateOwnLocationState({ latitude, longitude, accuracy, heading, speed, updatedAt });
+    await refreshMapLayers();
   } catch (error) {
     console.error(error);
     showToast(friendlyError(error, 'Kunde inte dela positionen.'), 'error');
   }
+}
+
+function updateOwnLocationState({ latitude, longitude, accuracy, heading, speed, updatedAt }) {
+  if (!appState.activeGroupId || !appState.user) return;
+  const row = {
+    group_id: appState.activeGroupId,
+    user_id: appState.user.id,
+    latitude,
+    longitude,
+    accuracy,
+    heading: Number.isFinite(heading) ? heading : null,
+    speed: Number.isFinite(speed) ? speed : null,
+    updated_at: updatedAt,
+  };
+  const index = appState.locations.findIndex((location) => location.group_id === row.group_id && location.user_id === row.user_id);
+  if (index >= 0) appState.locations[index] = { ...appState.locations[index], ...row };
+  else appState.locations.push(row);
 }
 
 function handlePositionError(error) {
@@ -818,7 +874,7 @@ export function focusRequestedLocation() {
     saveHiddenSentLocations();
     renderSentLocationMarkers();
   }
-  map.setView([latitude, longitude], 16);
+  setMapView([latitude, longitude], 16);
   L.popup().setLatLng([latitude, longitude]).setContent(escapeHtml(text || 'Plats')).openOn(map);
 }
 
@@ -853,5 +909,7 @@ window.addEventListener('faltchatt:map-visible', () => {
 });
 window.addEventListener('faltchatt:focus-location', focusRequestedLocation);
 window.addEventListener('faltchatt:group-changing', () => {
+  userAdjustedMapView = false;
+  autoCenteredOwnPosition = false;
   void clearOwnPresence();
 });
