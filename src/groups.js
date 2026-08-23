@@ -10,7 +10,11 @@ export function isApprovedMember() {
 }
 
 export function currentRole() {
-  return appState.memberships.find((member) => member.group_id === appState.activeGroupId)?.role || null;
+  return (
+    appState.memberships.find((member) => member.group_id === appState.activeGroupId)?.role ||
+    appState.members.find((member) => member.group_id === appState.activeGroupId && member.user_id === appState.user?.id)?.role ||
+    null
+  );
 }
 
 export function canAdminGroup() {

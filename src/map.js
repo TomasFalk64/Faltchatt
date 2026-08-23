@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { appState, isRecentLocation, presenceForUser } from './state.js';
+import { appState } from './state.js';
 import { canAdminGroup, isApprovedMember } from './groups.js';
 import { refreshChatMessages, sendMessage } from './chat.js';
 import { deleteGroupGeoTiff, listGroupGeoTiffs, loadGeoTiffLayers, removeGeoTiffLayers, setGeoTiffOpacity, uploadGroupGeoTiff } from './geotiff.js';
@@ -11,6 +11,8 @@ let map;
 let ownMarker;
 let membersLayer;
 let sentLocationsLayer;
+let memberMarkers = new Map();
+let memberClusterMarkers = new Map();
 let locationChannel;
 let locationRefreshTimer;
 let presenceHeartbeatTimer;
@@ -24,6 +26,8 @@ let groupGeoTiffs = [];
 let groupGeoTiffsLoadedFor = null;
 let hiddenGeoTiffPaths = new Set();
 let hiddenSentLocationsLoadedFor = null;
+const FADED_LOCATION_MS = 10 * 60 * 1000;
+const HIDDEN_LOCATION_MS = 60 * 60 * 1000;
 
 export async function loadLocations() {
   if (!appState.activeGroupId || !isApprovedMember()) {
@@ -157,6 +161,8 @@ function initMap() {
   });
   membersLayer = L.layerGroup().addTo(map);
   sentLocationsLayer = L.layerGroup().addTo(map);
+  memberMarkers = new Map();
+  memberClusterMarkers = new Map();
   L.control.layers({ OpenStreetMap: osm, Satellit: satellite }, { Gruppmedlemmar: membersLayer, 'Skickade platser': sentLocationsLayer }, { collapsed: true }).addTo(map);
   map.on('click', (event) => updateCoordinateReadout(event.latlng));
   map.on('contextmenu', (event) => openSendLocationPanel(event.latlng));
@@ -173,9 +179,9 @@ export async function refreshMapLayers() {
     bindMemberPopup(ownMarker, appState.user.id, () => lastOwnPosition);
   }
   loadHiddenSentLocations();
-  membersLayer.clearLayers();
   sentLocationsLayer.clearLayers();
   if (!appState.activeGroup || !isApprovedMember()) {
+    clearMemberMarkers();
     removeGeoTiffLayers(map);
     focusRequestedLocation();
     setTimeout(() => map.invalidateSize(), 80);
@@ -337,23 +343,23 @@ function memberPopup(userId, location) {
 
 function renderMemberLocationMarkers() {
   const groups = groupNearbyMemberLocations(appState.locations.filter(shouldShowMemberOnMap));
+  const visibleIndividualKeys = new Set();
+  const visibleClusterKeys = new Set();
   groups.forEach((group) => {
     if (group.length > 5) {
-      const marker = L.marker(groupCenter(group), { icon: memberClusterIcon() });
-      marker.bindPopup(memberClusterPopup(group));
-      marker.on('popupopen', () => bindMemberClusterPopup(marker, group));
-      marker.addTo(membersLayer);
+      const key = memberClusterKey(group);
+      visibleClusterKeys.add(key);
+      updateMemberClusterMarker(key, group);
       return;
     }
     memberOffsets(group.length).forEach((offset, index) => {
       const location = group[index];
-      const marker = L.marker(offsetLatLng(location, offset), {
-        icon: memberIcon(location.user_id, location.updated_at, location.user_id === appState.user?.id),
-      });
-      bindMemberPopup(marker, location.user_id, () => location);
-      marker.addTo(membersLayer);
+      visibleIndividualKeys.add(location.user_id);
+      updateMemberMarker(location, offset);
     });
   });
+  removeMissingMarkers(memberMarkers, visibleIndividualKeys);
+  removeMissingMarkers(memberClusterMarkers, visibleClusterKeys);
 }
 
 function groupNearbyMemberLocations(locations) {
@@ -407,6 +413,54 @@ function memberClusterIcon() {
     iconSize: [32, 32],
     iconAnchor: [16, 16],
   });
+}
+
+function memberClusterKey(group) {
+  return group.map((location) => location.user_id).sort().join('|');
+}
+
+function updateMemberMarker(location, offset) {
+  const latLng = offsetLatLng(location, offset);
+  const icon = memberIcon(location.user_id, location.updated_at, location.user_id === appState.user?.id);
+  let marker = memberMarkers.get(location.user_id);
+  if (!marker) {
+    marker = L.marker(latLng, { icon }).addTo(membersLayer);
+    memberMarkers.set(location.user_id, marker);
+  } else {
+    marker.setLatLng(latLng);
+    marker.setIcon(icon);
+  }
+  marker.faltchattLocation = location;
+  bindMemberPopup(marker, location.user_id, () => marker.faltchattLocation);
+}
+
+function updateMemberClusterMarker(key, group) {
+  const latLng = groupCenter(group);
+  let marker = memberClusterMarkers.get(key);
+  if (!marker) {
+    marker = L.marker(latLng, { icon: memberClusterIcon() }).addTo(membersLayer);
+    memberClusterMarkers.set(key, marker);
+  } else {
+    marker.setLatLng(latLng);
+    marker.setIcon(memberClusterIcon());
+  }
+  marker.faltchattGroup = group;
+  marker.bindPopup(memberClusterPopup(group));
+  marker.off('popupopen');
+  marker.on('popupopen', () => bindMemberClusterPopup(marker, marker.faltchattGroup));
+}
+
+function removeMissingMarkers(markers, visibleKeys) {
+  markers.forEach((marker, key) => {
+    if (visibleKeys.has(key)) return;
+    marker.remove();
+    markers.delete(key);
+  });
+}
+
+function clearMemberMarkers() {
+  removeMissingMarkers(memberMarkers, new Set());
+  removeMissingMarkers(memberClusterMarkers, new Set());
 }
 
 function memberClusterPopup(group) {
@@ -510,8 +564,8 @@ function sentLocationVisibilityKey() {
 }
 
 function memberIcon(userId, updatedAt, own = false) {
-  const minutes = (Date.now() - new Date(updatedAt).getTime()) / 60000;
-  const ageClass = minutes > 10 ? 'old' : minutes > 2 ? 'faded' : 'fresh';
+  const age = Date.now() - new Date(updatedAt).getTime();
+  const ageClass = age > FADED_LOCATION_MS ? 'faded' : 'fresh';
   const symbol = memberSymbolId(userId);
   const color = memberColor(userId);
   return L.divIcon({
@@ -647,8 +701,11 @@ export async function clearOwnLocation() {
 }
 
 function shouldShowMemberOnMap(location) {
-  if (!isRecentLocation(location)) return false;
-  const presence = presenceForUser(location.user_id);
+  if (!location?.updated_at) return false;
+  if (Date.now() - new Date(location.updated_at).getTime() > HIDDEN_LOCATION_MS) return false;
+  const member = appState.members.find((item) => item.user_id === location.user_id && item.status === 'approved');
+  if (!member) return false;
+  const presence = appState.presence.find((item) => item.user_id === location.user_id);
   return Boolean(presence?.is_sharing_location);
 }
 

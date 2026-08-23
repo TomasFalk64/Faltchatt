@@ -68,7 +68,14 @@ async function reloadAll() {
 async function refreshGroupsIfChanged() {
   const before = groupStateSignature();
   await loadGroups();
-  if (groupStateSignature() === before) return;
+  if (groupStateSignature() === before) {
+    await Promise.all([loadLocations(), loadPresence()]);
+    await refreshMapLayers();
+    refreshMemberList(handleUserChange);
+    updateNavBadges();
+    renderIcons();
+    return;
+  }
   await Promise.all([refreshChatMessages(), loadLocations(), loadPresence()]);
   await refreshMapLayers();
   syncPresenceAndSharing();

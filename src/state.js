@@ -23,7 +23,7 @@ export const SYMBOL_COLORS = [
   '#111827',
 ];
 
-export const ACTIVE_LOCATION_MS = 2 * 60 * 1000;
+export const ACTIVE_LOCATION_MS = 10 * 60 * 1000;
 export const ACTIVE_PRESENCE_MS = 45 * 1000;
 
 export const appState = {
