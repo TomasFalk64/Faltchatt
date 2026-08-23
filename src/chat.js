@@ -58,7 +58,7 @@ export function subscribeChat(onChanged) {
     .channel(`answers:${appState.activeGroupId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'question_answers', filter: `group_id=eq.${appState.activeGroupId}` }, onChanged)
     .subscribe();
-  chatRefreshTimer = window.setInterval(onChanged, 5000);
+  chatRefreshTimer = window.setInterval(onChanged, 20000);
 }
 
 export function unsubscribeChat() {

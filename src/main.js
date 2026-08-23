@@ -1,7 +1,7 @@
 import './styles.css';
 import { isSupabaseConfigured } from './supabase.js';
 import { initAuth, renderAuth, renderProfile, setAuthChangeHandler } from './auth.js';
-import { loadGroups, loadInvites, loadMembers, loadPresence, renderAdmin, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
+import { loadGroups, loadInvites, loadMembers, loadPresence, refreshGroupDynamics, refreshMemberList, renderAdmin, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
 import { loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
 import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, startPresenceHeartbeat, startSharing, stopPresenceHeartbeat, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
 import { appState, setActiveGroupId } from './state.js';
@@ -50,9 +50,10 @@ async function reloadAll() {
       if (locationMessageSignature() !== beforeLocations) await refreshMapLayers();
     });
     subscribeLocations(async () => {
-      await loadLocations();
+      await Promise.all([loadLocations(), loadPresence()]);
       await refreshMapLayers();
-      refreshGroupAdminViews();
+      refreshMemberList(handleUserChange);
+      updateNavBadges();
     });
     subscribeGroups(refreshGroupsIfChanged);
     renderAll();
@@ -70,8 +71,11 @@ async function refreshGroupsIfChanged() {
   const before = groupStateSignature();
   await loadGroups();
   if (groupStateSignature() === before) return;
-  await Promise.all([loadChatData(), loadLocations()]);
-  renderAll();
+  await Promise.all([refreshChatMessages(), loadLocations(), loadPresence()]);
+  await refreshMapLayers();
+  refreshGroupDynamics(handleUserChange);
+  updateNavBadges();
+  renderIcons();
 }
 
 function groupStateSignature() {
@@ -81,7 +85,7 @@ function groupStateSignature() {
     appState.memberships.map((member) => `${member.id}:${member.group_id}:${member.groups?.name || ''}:${member.role}:${member.status}`).join('|'),
     appState.members.map((member) => `${member.id}:${member.user_id}:${member.role}:${member.status}:${member.profiles?.alias || ''}:${member.profiles?.email || ''}:${member.profiles?.phone || ''}:${member.profiles?.show_phone}`).join('|'),
     appState.invites.map((invite) => `${invite.id}:${invite.email}:${invite.phone || ''}:${invite.alias || ''}:${invite.status}`).join('|'),
-    appState.presence.map((presence) => `${presence.group_id}:${presence.user_id}:${presence.last_seen}:${presence.is_sharing_location}`).join('|'),
+    appState.presence.map((presence) => `${presence.group_id}:${presence.user_id}:${presence.is_sharing_location}`).join('|'),
   ].join('::');
 }
 
@@ -97,16 +101,8 @@ function renderAll() {
   document.querySelector('.app-frame').hidden = !appState.user;
   setSessionPill();
   renderProfile();
-  renderGroups(async () => {
-    await loadGroups();
-    await Promise.all([loadMembers(), loadInvites(), loadPresence(), loadChatData(), loadLocations()]);
-    renderAll();
-  });
-  renderAdmin(async () => {
-    await loadGroups();
-    await Promise.all([loadMembers(), loadInvites(), loadPresence(), loadChatData(), loadLocations()]);
-    renderAll();
-  });
+  renderGroups(handleUserChange);
+  renderAdmin(handleUserChange);
   renderMapView(reloadAll);
   renderMapControls(reloadAll);
   renderChat();
@@ -115,17 +111,10 @@ function renderAll() {
   renderIcons();
 }
 
-function refreshGroupAdminViews() {
-  const onChanged = async () => {
-    await loadGroups();
-    await Promise.all([loadMembers(), loadInvites(), loadPresence(), loadChatData(), loadLocations()]);
-    renderAll();
-  };
-  renderGroups(onChanged);
-  renderAdmin(onChanged);
-  setView(appState.user ? appState.selectedView : 'profile');
-  updateNavBadges();
-  renderIcons();
+async function handleUserChange() {
+  await loadGroups();
+  await Promise.all([loadMembers(), loadInvites(), loadPresence(), loadChatData(), loadLocations()]);
+  renderAll();
 }
 
 bootstrap();

@@ -98,7 +98,7 @@ export function subscribeGroups(onChanged) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'group_invites' }, onChanged)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'group_presence' }, onChanged)
     .subscribe();
-  groupRefreshTimer = window.setInterval(onChanged, 10000);
+  groupRefreshTimer = window.setInterval(onChanged, 30000);
 }
 
 export function unsubscribeGroups() {
@@ -113,6 +113,37 @@ export function renderGroups(onChanged = async () => {}) {
   view.innerHTML = '';
   if (!appState.user) return;
 
+  view.append(
+    el('div', { className: 'page sidebar-page' }, [
+      el('section', { className: 'panel stack' }, [
+        el('div', { id: 'group-select-region' }, [groupSelectControl(onChanged)]),
+        el('div', { id: 'group-member-list-region' }, [memberList(onChanged)]),
+        el('div', { id: 'group-summary-region' }, [activeGroupSummary()]),
+        createGroupForm(onChanged),
+        joinGroupForm(onChanged),
+      ]),
+    ]),
+  );
+  renderIcons();
+}
+
+export function refreshGroupDynamics(onChanged = async () => {}) {
+  const selectRegion = document.querySelector('#group-select-region');
+  if (selectRegion) selectRegion.replaceChildren(groupSelectControl(onChanged));
+  refreshMemberList(onChanged);
+  const summaryRegion = document.querySelector('#group-summary-region');
+  if (summaryRegion) summaryRegion.replaceChildren(activeGroupSummary());
+  renderIcons();
+}
+
+export function refreshMemberList(onChanged = async () => {}) {
+  const region = document.querySelector('#group-member-list-region');
+  if (!region) return;
+  region.replaceChildren(memberList(onChanged));
+  renderIcons();
+}
+
+function groupSelectControl(onChanged) {
   const groupSelect = el(
     'select',
     {
@@ -130,19 +161,7 @@ export function renderGroups(onChanged = async () => {}) {
     ],
   );
   groupSelect.value = appState.activeGroupId || '';
-
-  view.append(
-    el('div', { className: 'page sidebar-page' }, [
-      el('section', { className: 'panel stack' }, [
-        el('label', { className: 'group-section-label' }, ['Aktuell grupp', groupSelect]),
-        memberList(onChanged),
-        activeGroupSummary(),
-        createGroupForm(onChanged),
-        joinGroupForm(onChanged),
-      ]),
-    ]),
-  );
-  renderIcons();
+  return el('label', { className: 'group-section-label' }, ['Aktuell grupp', groupSelect]);
 }
 
 export function renderAdmin(onChanged = async () => {}) {

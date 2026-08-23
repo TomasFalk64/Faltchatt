@@ -42,7 +42,7 @@ export function subscribeLocations(onChanged) {
     .channel(`locations:${appState.activeGroupId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'locations', filter: `group_id=eq.${appState.activeGroupId}` }, onChanged)
     .subscribe();
-  locationRefreshTimer = window.setInterval(onChanged, 10000);
+  locationRefreshTimer = window.setInterval(onChanged, 20000);
 }
 
 export function unsubscribeLocations() {
