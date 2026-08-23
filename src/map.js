@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { appState } from './state.js';
+import { appState, isRecentLocation, presenceForUser } from './state.js';
 import { canAdminGroup, isApprovedMember } from './groups.js';
 import { refreshChatMessages, sendMessage } from './chat.js';
 import { deleteGroupGeoTiff, listGroupGeoTiffs, loadGeoTiffLayers, removeGeoTiffLayers, setGeoTiffOpacity, uploadGroupGeoTiff } from './geotiff.js';
@@ -12,6 +12,8 @@ let ownMarker;
 let membersLayer;
 let sentLocationsLayer;
 let locationChannel;
+let locationRefreshTimer;
+let presenceHeartbeatTimer;
 let watchId;
 let lastSent = { at: 0, lat: null, lng: null };
 let lastOwnPosition = null;
@@ -40,15 +42,22 @@ export function subscribeLocations(onChanged) {
     .channel(`locations:${appState.activeGroupId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'locations', filter: `group_id=eq.${appState.activeGroupId}` }, onChanged)
     .subscribe();
+  locationRefreshTimer = window.setInterval(onChanged, 10000);
 }
 
 export function unsubscribeLocations() {
   if (locationChannel) requireSupabase().removeChannel(locationChannel);
   locationChannel = null;
+  if (locationRefreshTimer) window.clearInterval(locationRefreshTimer);
+  locationRefreshTimer = null;
 }
 
 export async function renderMapView(onChanged) {
   const view = document.querySelector('#map-view');
+  if (map && view.querySelector('#map')) {
+    await refreshMapLayers();
+    return;
+  }
   view.innerHTML = '';
   const mapNode = el('div', { id: 'map' });
 
@@ -66,9 +75,9 @@ export async function renderMapView(onChanged) {
       el('button', {
         type: 'button',
         className: 'map-position-check-button',
-        title: 'kontrollera position nu',
-        'aria-label': 'kontrollera position nu',
-        onClick: checkPositionNow,
+        title: 'synka allt nu',
+        'aria-label': 'synka allt nu',
+        onClick: () => syncAllNow(onChanged),
       }, ['↻']),
       el('div', { id: 'map-send-panel', className: 'map-send-panel', hidden: true }),
     ]),
@@ -172,7 +181,7 @@ export async function refreshMapLayers() {
     setTimeout(() => map.invalidateSize(), 80);
     return;
   }
-  appState.locations.forEach((location) => {
+  appState.locations.filter(shouldShowMemberOnMap).forEach((location) => {
     if (location.user_id === appState.user.id) return;
     const marker = L.marker([location.latitude, location.longitude], { icon: memberIcon(location.user_id, location.updated_at) });
     const name = '';
@@ -423,34 +432,45 @@ export function startSharing() {
   });
 }
 
-function checkPositionNow() {
-  if (!navigator.geolocation) {
-    showToast('GPS stöds inte av webbläsaren.', 'error');
-    return;
+async function syncAllNow(onChanged) {
+  showToast('Synkar gruppen...', 'info');
+  try {
+    await touchPresence();
+    await checkPositionOnce();
+    if (appState.activeGroupId && isApprovedMember()) await loadLocations();
+    await onChanged();
+    showToast('Gruppen synkades.', 'success');
+  } catch (error) {
+    console.error(error);
+    showToast(friendlyError(error, 'Kunde inte synka gruppen.'), 'error');
   }
-  showToast('Kontrollerar position...', 'info');
-  navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      try {
-        await handlePosition(position);
-        if (appState.activeGroupId && isApprovedMember()) await loadLocations();
-        await refreshMapLayers();
-        showToast('Positionen kontrollerades.', 'success');
-      } catch (error) {
-        console.error(error);
-        showToast(friendlyError(error, 'Kunde inte kontrollera positionen.'), 'error');
-      }
-    },
-    handlePositionError,
-    {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 15000,
-    },
-  );
+}
+
+function checkPositionOnce() {
+  if (!navigator.geolocation || !appState.locationSharingEnabled) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          await handlePosition(position);
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      },
+      reject,
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15000,
+      },
+    );
+  });
 }
 
 export function stopSharing() {
+  void clearOwnLocation();
+  void touchPresence();
   if (watchId) navigator.geolocation.clearWatch(watchId);
   watchId = null;
   lastOwnPosition = null;
@@ -459,6 +479,74 @@ export function stopSharing() {
     ownMarker.remove();
     ownMarker = null;
   }
+}
+
+export function startPresenceHeartbeat() {
+  stopPresenceHeartbeat();
+  void touchPresence();
+  presenceHeartbeatTimer = window.setInterval(() => {
+    void touchPresence();
+  }, 10000);
+}
+
+export function stopPresenceHeartbeat() {
+  if (presenceHeartbeatTimer) window.clearInterval(presenceHeartbeatTimer);
+  presenceHeartbeatTimer = null;
+}
+
+export async function touchPresence() {
+  if (!appState.activeGroupId || !appState.user || !isApprovedMember()) return;
+  try {
+    const { error } = await requireSupabase().from('group_presence').upsert(
+      {
+        group_id: appState.activeGroupId,
+        user_id: appState.user.id,
+        last_seen: new Date().toISOString(),
+        is_sharing_location: appState.locationSharingEnabled,
+      },
+      { onConflict: 'group_id,user_id' },
+    );
+    if (error) throw error;
+  } catch (error) {
+    console.warn('Kunde inte uppdatera gruppnärvaro.', error);
+  }
+}
+
+export async function clearOwnPresence() {
+  if (!appState.activeGroupId || !appState.user) return;
+  try {
+    const { error } = await requireSupabase()
+      .from('group_presence')
+      .delete()
+      .eq('group_id', appState.activeGroupId)
+      .eq('user_id', appState.user.id);
+    if (error) throw error;
+    appState.presence = appState.presence.filter((presence) => presence.user_id !== appState.user.id);
+  } catch (error) {
+    console.warn('Kunde inte rensa egen gruppnärvaro.', error);
+  }
+}
+
+export async function clearOwnLocation() {
+  if (!appState.activeGroupId || !appState.user) return;
+  try {
+    const { error } = await requireSupabase()
+      .from('locations')
+      .delete()
+      .eq('group_id', appState.activeGroupId)
+      .eq('user_id', appState.user.id);
+    if (error) throw error;
+    appState.locations = appState.locations.filter((location) => location.user_id !== appState.user.id);
+    await refreshMapLayers();
+  } catch (error) {
+    console.warn('Kunde inte rensa egen position.', error);
+  }
+}
+
+function shouldShowMemberOnMap(location) {
+  if (!isRecentLocation(location)) return false;
+  const presence = presenceForUser(location.user_id);
+  return Boolean(presence?.is_sharing_location);
 }
 
 async function handlePosition(position) {
@@ -604,3 +692,6 @@ window.addEventListener('faltchatt:map-visible', () => {
   if (map) setTimeout(() => map.invalidateSize(), 80);
 });
 window.addEventListener('faltchatt:focus-location', focusRequestedLocation);
+window.addEventListener('faltchatt:group-changing', () => {
+  void clearOwnPresence();
+});

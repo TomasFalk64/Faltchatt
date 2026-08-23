@@ -23,6 +23,9 @@ export const SYMBOL_COLORS = [
   '#111827',
 ];
 
+export const ACTIVE_LOCATION_MS = 2 * 60 * 1000;
+export const ACTIVE_PRESENCE_MS = 45 * 1000;
+
 export const appState = {
   session: null,
   user: null,
@@ -33,6 +36,7 @@ export const appState = {
   memberships: [],
   members: [],
   invites: [],
+  presence: [],
   messages: [],
   questions: new Map(),
   answers: [],
@@ -60,4 +64,18 @@ export function setActiveGroupId(groupId) {
   } else {
     localStorage.removeItem('faltchatt.activeGroupId');
   }
+}
+
+export function isRecentLocation(location) {
+  if (!location?.updated_at) return false;
+  return Date.now() - new Date(location.updated_at).getTime() <= ACTIVE_LOCATION_MS;
+}
+
+export function isActivePresence(presence) {
+  if (!presence?.last_seen) return false;
+  return Date.now() - new Date(presence.last_seen).getTime() <= ACTIVE_PRESENCE_MS;
+}
+
+export function presenceForUser(userId) {
+  return appState.presence.find((presence) => presence.user_id === userId && isActivePresence(presence)) || null;
 }

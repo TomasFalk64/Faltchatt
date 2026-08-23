@@ -1,6 +1,6 @@
 import { requireSupabase } from './supabase.js';
-import { appState, setActiveGroupId } from './state.js';
-import { el, friendlyError, icon, renderIcons, showToast, symbolNode } from './ui.js';
+import { appState, presenceForUser, setActiveGroupId } from './state.js';
+import { el, formatRelative, friendlyError, icon, renderIcons, showToast, symbolNode } from './ui.js';
 
 let groupChannel = null;
 let groupRefreshTimer = null;
@@ -38,16 +38,19 @@ export async function loadGroups() {
       appState.activeGroup = membership.groups || null;
       await loadMembers();
       await loadInvites();
+      await loadPresence();
     } else {
       setActiveGroupId(null);
       appState.activeGroup = null;
       appState.members = [];
       appState.invites = [];
+      appState.presence = [];
     }
   } else {
     appState.activeGroup = null;
     appState.members = [];
     appState.invites = [];
+    appState.presence = [];
   }
 }
 
@@ -75,6 +78,17 @@ export async function loadInvites() {
   appState.invites = data || [];
 }
 
+export async function loadPresence() {
+  appState.presence = [];
+  if (!appState.activeGroupId || !isApprovedMember()) return;
+  const { data, error } = await requireSupabase()
+    .from('group_presence')
+    .select('*')
+    .eq('group_id', appState.activeGroupId);
+  if (error) throw error;
+  appState.presence = data || [];
+}
+
 export function subscribeGroups(onChanged) {
   unsubscribeGroups();
   if (!appState.user) return;
@@ -82,8 +96,9 @@ export function subscribeGroups(onChanged) {
     .channel('group-memberships')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, onChanged)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'group_invites' }, onChanged)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'group_presence' }, onChanged)
     .subscribe();
-  groupRefreshTimer = window.setInterval(onChanged, 3000);
+  groupRefreshTimer = window.setInterval(onChanged, 10000);
 }
 
 export function unsubscribeGroups() {
@@ -102,6 +117,7 @@ export function renderGroups(onChanged = async () => {}) {
     'select',
     {
       onChange: async (event) => {
+        window.dispatchEvent(new CustomEvent('faltchatt:group-changing'));
         setActiveGroupId(event.target.value || null);
         await onChanged();
       },
@@ -124,16 +140,39 @@ export function renderGroups(onChanged = async () => {}) {
         createGroupForm(onChanged),
         joinGroupForm(onChanged),
       ]),
-      canAdminGroup()
-        ? el('section', { className: 'panel stack' }, [
-            el('h2', { text: 'Administration' }),
-            isGroupOwner() ? adminRoleControl(onChanged) : null,
-            importMembersControl(onChanged),
-            isGroupOwner() ? clearLocationPinsControl(onChanged) : null,
-            isGroupOwner() ? clearChatControl(onChanged) : null,
-            isGroupOwner() ? deleteGroupControl(onChanged) : null,
-          ])
-        : null,
+    ]),
+  );
+  renderIcons();
+}
+
+export function renderAdmin(onChanged = async () => {}) {
+  const view = document.querySelector('#admin-view');
+  if (!view) return;
+  view.innerHTML = '';
+  if (!appState.user) return;
+
+  let content;
+  if (!appState.activeGroup) {
+    content = el('p', { className: 'muted', text: 'Välj en grupp i gruppfliken för att se administration.' });
+  } else if (!canAdminGroup()) {
+    content = el('p', { className: 'muted', text: 'Administrationsverktyg visas för owner och admin i den valda gruppen.' });
+  } else {
+    content = [
+      isGroupOwner() ? adminRoleControl(onChanged) : null,
+      importMembersControl(onChanged),
+      emailGroupControl(),
+      isGroupOwner() ? clearLocationPinsControl(onChanged) : null,
+      isGroupOwner() ? clearChatControl(onChanged) : null,
+      isGroupOwner() ? deleteGroupControl(onChanged) : null,
+    ];
+  }
+
+  view.append(
+    el('div', { className: 'page sidebar-page' }, [
+      el('section', { className: 'panel stack' }, [
+        el('h2', { text: 'Administration' }),
+        ...(Array.isArray(content) ? content : [content]),
+      ]),
     ]),
   );
   renderIcons();
@@ -229,29 +268,37 @@ function memberList(onChanged) {
     const isSelf = member.user_id === appState.user.id;
     const canRemove = isSelf || (owner && member.role !== 'owner');
     const removeLabel = isSelf ? 'Gå ur gruppen' : 'Ta bort medlem';
-    const activeText = memberHasLocation(member.user_id) ? 'inloggad' : '';
-    const phonePanel = memberPhonePanel(profile);
+    const activeText = memberPresence(member.user_id) ? 'aktiv' : '';
+    const infoPanel = memberInfoPanel(member);
     list.append(
-      el('div', { className: `member-row status-${member.status}` }, [
+      el('div', {
+        className: `member-row status-${member.status}`,
+        title: 'Visa medlemsinfo',
+        onClick: () => infoPanel.hidden = !infoPanel.hidden,
+      }, [
         Object.assign(symbolNode(profile.symbol || 'hat', 'member-symbol'), { style: `color: ${profile.symbol_color || '#17324d'}` }),
         el('div', { className: 'member-main' }, [
           el('strong', { text: label }),
           el('small', { text: memberRowMeta(member, activeText) }),
-          el('button', {
-            type: 'button',
-            className: 'member-phone-link',
-            onClick: () => phonePanel.hidden = !phonePanel.hidden,
-          }, ['mobil']),
         ]),
-        phonePanel,
+        infoPanel,
         admin && member.status === 'pending'
           ? el('div', { className: 'row-actions' }, [
-              actionButton('check', 'Godkänn', () => updateMember(member.id, { status: 'approved', approved_at: new Date().toISOString() }, onChanged)),
-              actionButton('x', 'Avvisa', () => updateMember(member.id, { status: 'rejected' }, onChanged)),
+              actionButton('check', 'Godkänn', (event) => {
+                event.stopPropagation();
+                updateMember(member.id, { status: 'approved', approved_at: new Date().toISOString() }, onChanged);
+              }),
+              actionButton('x', 'Avvisa', (event) => {
+                event.stopPropagation();
+                updateMember(member.id, { status: 'rejected' }, onChanged);
+              }),
             ])
           : null,
         member.status !== 'pending'
-          ? actionButton('x', canRemove ? removeLabel : 'Bara owner kan ta bort andra medlemmar', () => removeMember(member, label, onChanged), {
+          ? actionButton('x', canRemove ? removeLabel : 'Bara owner kan ta bort andra medlemmar', (event) => {
+              event.stopPropagation();
+              removeMember(member, label, onChanged);
+            }, {
               className: 'danger-icon-button member-remove-button',
               disabled: !canRemove,
             })
@@ -300,39 +347,15 @@ async function revokeInvite(invite, onChanged) {
   }
 }
 
-function memberPhonePanel(profile) {
-  const canShowPhone = profile.show_phone !== false && Boolean(profile.phone);
-  const value = canShowPhone ? profile.phone : 'ej angivet';
-  return el('div', { className: 'member-phone-popover', hidden: true }, [
-    canShowPhone
-      ? el('button', {
-          type: 'button',
-          className: 'member-phone-number',
-          title: 'Kopiera mobilnummer',
-          onClick: () => copyPhoneNumber(profile.phone),
-        }, [value])
-      : el('span', { text: value }),
+function memberInfoPanel(member) {
+  const profile = member.profiles || {};
+  const presence = memberPresence(member.user_id);
+  const phone = profile.show_phone !== false && profile.phone ? profile.phone : 'ej angivet';
+  return el('div', { className: 'member-info-popover', hidden: true, onClick: (event) => event.stopPropagation() }, [
+    el('div', {}, [el('span', { text: 'E-post: ' }), el('span', { text: profile.email || 'ej angivet' })]),
+    el('div', {}, [el('span', { text: 'Mobil: ' }), el('span', { text: phone })]),
+    el('div', {}, [el('span', { text: 'Senast aktiv: ' }), el('span', { text: presence ? formatRelative(presence.last_seen) : 'okänd' })]),
   ]);
-}
-
-async function copyPhoneNumber(phone) {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(phone);
-    } else {
-      const input = el('input', { value: phone });
-      input.style.position = 'fixed';
-      input.style.left = '-9999px';
-      document.body.append(input);
-      input.select();
-      document.execCommand('copy');
-      input.remove();
-    }
-    showToast('Mobilnumret kopierades.', 'success');
-  } catch (error) {
-    console.error(error);
-    showToast('Kunde inte kopiera mobilnumret.', 'error');
-  }
 }
 
 function compareMembers(a, b) {
@@ -340,7 +363,7 @@ function compareMembers(a, b) {
   const statusRank = { approved: 0, pending: 1, rejected: 2 };
   const roleDiff = (roleRank[a.role] ?? 3) - (roleRank[b.role] ?? 3);
   if (roleDiff) return roleDiff;
-  const activeDiff = Number(memberHasLocation(b.user_id)) - Number(memberHasLocation(a.user_id));
+  const activeDiff = Number(memberPresence(b.user_id)) - Number(memberPresence(a.user_id));
   if (activeDiff) return activeDiff;
   const statusDiff = (statusRank[a.status] ?? 3) - (statusRank[b.status] ?? 3);
   if (statusDiff) return statusDiff;
@@ -349,8 +372,8 @@ function compareMembers(a, b) {
   return nameA.localeCompare(nameB, 'sv');
 }
 
-function memberHasLocation(userId) {
-  return appState.locations.some((location) => location.user_id === userId);
+function memberPresence(userId) {
+  return presenceForUser(userId);
 }
 
 function memberRowMeta(member, activeText) {
@@ -399,6 +422,199 @@ function memberLabel(member) {
   const profile = member.profiles || {};
   const name = profile.alias || profile.email || profile.phone || `Användare ${member.user_id.slice(0, 8)}`;
   return `${name} (${member.role === 'admin' ? 'admin' : 'member'})`;
+}
+
+function emailGroupControl() {
+  const panel = el('div', { className: 'group-email-panel', hidden: true });
+  const openButton = el('button', {
+    type: 'button',
+    className: 'secondary',
+    onClick: () => {
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden && !panel.childNodes.length) {
+        renderGroupEmailPanel(panel);
+        renderIcons();
+      }
+    },
+  }, [icon('mail', 'Skicka e-post'), 'Skicka e-post till gruppen']);
+
+  return el('div', { className: 'admin-cleanup group-email-control' }, [
+    openButton,
+    panel,
+  ]);
+}
+
+function renderGroupEmailPanel(panel) {
+  const mode = el('select', {}, [
+    el('option', { value: 'all', text: 'Alla' }),
+    el('option', { value: 'approved', text: 'approved' }),
+    el('option', { value: 'pending', text: 'pending' }),
+    el('option', { value: 'invited', text: 'invited' }),
+    el('option', { value: 'selected', text: 'Valda personer' }),
+  ]);
+  const subject = el('input', { placeholder: 'Ämne' });
+  const body = el('textarea', { rows: '5', placeholder: 'Gemensam huvudtext' });
+  const approvedText = el('textarea', { rows: '3' });
+  const pendingText = el('textarea', { rows: '3' });
+  const invitedText = el('textarea', { rows: '3' });
+  approvedText.value = 'Du är redan medlem i gruppen. Logga in i Fältchatt via länken nedan.';
+  pendingText.value = 'Du har ansökt om medlemskap i gruppen och väntar på godkännande.';
+  invitedText.value = 'Du är inbjuden men saknar konto. Skapa konto med den här e-postadressen och bekräfta e-postmeddelandet för att gå med i gruppen.';
+
+  const selectedBox = el('div', { className: 'email-selected-list', hidden: true });
+  const preview = el('div', { className: 'email-preview' });
+  const sendButton = el('button', { type: 'button', className: 'primary', hidden: true }, [icon('send', 'Skicka'), 'Skicka e-post']);
+  let lastPreview = null;
+
+  function resetPreview() {
+    lastPreview = null;
+    sendButton.hidden = true;
+    preview.replaceChildren();
+  }
+
+  function renderSelectedList() {
+    selectedBox.hidden = mode.value !== 'selected';
+    if (selectedBox.hidden) return;
+    selectedBox.replaceChildren(...groupEmailRecipients().map((recipient) => {
+      const checkbox = el('input', { type: 'checkbox', value: recipient.key });
+      checkbox.addEventListener('change', resetPreview);
+      return el('label', { className: 'email-recipient-choice' }, [
+        checkbox,
+        el('span', { text: `${recipient.name} · ${recipient.status}` }),
+        el('small', { text: recipient.email }),
+      ]);
+    }));
+  }
+
+  function collectPayload() {
+    const selectedRecipients = [...selectedBox.querySelectorAll('input:checked')].map((input) => input.value);
+    return {
+      groupId: appState.activeGroupId,
+      recipientMode: mode.value,
+      selectedRecipients,
+      subject: subject.value.trim(),
+      body: body.value.trim(),
+      statusTexts: {
+        approved: approvedText.value.trim(),
+        pending: pendingText.value.trim(),
+        invited: invitedText.value.trim(),
+      },
+    };
+  }
+
+  function showPreview() {
+    const payload = collectPayload();
+    const recipients = filterGroupEmailRecipients(payload.recipientMode, payload.selectedRecipients);
+    if (!payload.subject || !payload.body) {
+      showToast('Ange ämne och huvudtext först.', 'warning');
+      return;
+    }
+    if (!recipients.length) {
+      showToast('Välj minst en mottagare.', 'warning');
+      return;
+    }
+    lastPreview = payload;
+    sendButton.hidden = false;
+    preview.replaceChildren(
+      el('div', { className: 'email-preview-box' }, [
+        el('strong', { text: `Förhandsgranskning (${recipients.length} mottagare)` }),
+        el('div', { className: 'email-preview-recipients' }, recipients.slice(0, 8).map((recipient) => el('span', { text: `${recipient.email} · ${recipient.status}` }))),
+        recipients.length > 8 ? el('p', { className: 'muted', text: `Visar 8 av ${recipients.length} mottagare.` }) : null,
+        el('p', { className: 'email-preview-subject', text: payload.subject }),
+        el('pre', { text: buildEmailPreviewText(payload, recipients[0]) }),
+      ]),
+    );
+  }
+
+  async function sendEmail() {
+    if (!lastPreview) return;
+    try {
+      const { data, error } = await requireSupabase().functions.invoke('send-group-email', { body: lastPreview });
+      if (error) throw error;
+      showToast(`E-post skickades till ${data?.sent ?? 0} mottagare.`, 'success');
+      resetPreview();
+    } catch (error) {
+      console.error(error);
+      showToast(groupEmailError(error), 'error');
+    }
+  }
+
+  mode.addEventListener('change', () => {
+    renderSelectedList();
+    resetPreview();
+  });
+  [subject, body, approvedText, pendingText, invitedText].forEach((input) => input.addEventListener('input', resetPreview));
+  sendButton.addEventListener('click', sendEmail);
+
+  panel.replaceChildren(
+    el('div', { className: 'stack' }, [
+      el('label', {}, ['Mottagare', mode]),
+      selectedBox,
+      el('label', {}, ['Ämne', subject]),
+      el('label', {}, ['Huvudtext', body]),
+      el('details', { className: 'email-status-texts' }, [
+        el('summary', { text: 'Standardtexter per status' }),
+        el('label', {}, ['approved', approvedText]),
+        el('label', {}, ['pending', pendingText]),
+        el('label', {}, ['invited', invitedText]),
+      ]),
+      el('div', { className: 'button-row' }, [
+        el('button', { type: 'button', className: 'ghost', onClick: () => { panel.hidden = true; } }, [icon('x', 'Stäng'), 'Stäng']),
+        el('button', { type: 'button', className: 'secondary', onClick: showPreview }, [icon('eye', 'Förhandsgranska'), 'Förhandsgranska']),
+        sendButton,
+      ]),
+      preview,
+    ]),
+  );
+  renderSelectedList();
+}
+
+function groupEmailRecipients() {
+  const members = appState.members
+    .filter((member) => ['approved', 'pending'].includes(member.status) && member.profiles?.email)
+    .map((member) => ({
+      key: `member:${member.id}`,
+      id: member.id,
+      email: member.profiles.email,
+      name: member.profiles.alias || member.profiles.email,
+      status: member.status,
+    }));
+  const invites = appState.invites.map((invite) => ({
+    key: `invite:${invite.id}`,
+    id: invite.id,
+    email: invite.email,
+    name: invite.alias || invite.email,
+    status: 'invited',
+  }));
+  return [...members, ...invites].sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+}
+
+function filterGroupEmailRecipients(mode, selectedRecipients = []) {
+  const recipients = groupEmailRecipients();
+  if (mode === 'all') return recipients;
+  if (mode === 'selected') return recipients.filter((recipient) => selectedRecipients.includes(recipient.key));
+  return recipients.filter((recipient) => recipient.status === mode);
+}
+
+function buildEmailPreviewText(payload, recipient) {
+  const statusText = payload.statusTexts?.[recipient?.status] || '';
+  return [payload.body, statusText, appUrlForEmail()].filter(Boolean).join('\n\n');
+}
+
+function appUrlForEmail() {
+  return new URL(import.meta.env.BASE_URL, window.location.origin).toString();
+}
+
+function groupEmailError(error) {
+  const message = error?.message || '';
+  const name = error?.name || '';
+  if (name === 'FunctionsFetchError' || message.includes('Failed to send a request to the Edge Function')) {
+    return 'Kunde inte nå e-postfunktionen. Kontrollera att Supabase Edge Function "send-group-email" är deployad och att den har rätt secrets.';
+  }
+  if (name === 'FunctionsHttpError') {
+    return 'E-postfunktionen svarade med fel. Kontrollera Edge Function-loggen i Supabase.';
+  }
+  return friendlyError(error, 'Kunde inte skicka e-post.');
 }
 
 function importMembersControl(onChanged) {

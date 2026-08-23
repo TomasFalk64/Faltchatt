@@ -186,12 +186,14 @@ export function renderAppShell() {
               navButton('users', 'Grupp', 'group'),
               navButton('map', 'Karta', 'map'),
               navButton('message-square', 'Chatt', 'chat'),
+              navButton('shield', 'Admin', 'admin'),
             ]),
             el('div', { className: 'sidebar-content' }, [
               el('section', { id: 'profile-view', className: 'side-view', 'data-view': 'profile' }),
               el('section', { id: 'group-view', className: 'side-view', 'data-view': 'group', hidden: true }),
               el('section', { id: 'map-controls-view', className: 'side-view', 'data-view': 'map', hidden: true }),
               el('section', { id: 'chat-view', className: 'side-view', 'data-view': 'chat', hidden: true }),
+              el('section', { id: 'admin-view', className: 'side-view', 'data-view': 'admin', hidden: true }),
             ]),
             el('section', { className: 'log-panel' }, [
               el('div', { className: 'log-header' }, [

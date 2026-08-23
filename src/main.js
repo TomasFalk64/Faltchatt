@@ -1,9 +1,9 @@
 import './styles.css';
 import { isSupabaseConfigured } from './supabase.js';
 import { initAuth, renderAuth, renderProfile, setAuthChangeHandler } from './auth.js';
-import { loadGroups, loadInvites, loadMembers, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
+import { loadGroups, loadInvites, loadMembers, loadPresence, renderAdmin, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
 import { loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
-import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, startSharing, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
+import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, startPresenceHeartbeat, startSharing, stopPresenceHeartbeat, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
 import { appState, setActiveGroupId } from './state.js';
 import { renderAppShell, renderIcons, setSessionPill, setView, showToast, updateNavBadges } from './ui.js';
 
@@ -30,9 +30,11 @@ async function reloadAll() {
       appState.memberships = [];
       appState.members = [];
       appState.invites = [];
+      appState.presence = [];
       appState.messages = [];
       appState.locations = [];
       stopSharing();
+      stopPresenceHeartbeat();
       renderAll();
       return;
     }
@@ -50,9 +52,12 @@ async function reloadAll() {
     subscribeLocations(async () => {
       await loadLocations();
       await refreshMapLayers();
+      refreshGroupAdminViews();
     });
     subscribeGroups(refreshGroupsIfChanged);
     renderAll();
+    if (appState.activeGroup && appState.memberships.some((member) => member.group_id === appState.activeGroupId && member.status === 'approved')) startPresenceHeartbeat();
+    else stopPresenceHeartbeat();
     if (appState.locationSharingEnabled) startSharing();
   } catch (error) {
     console.error(error);
@@ -76,6 +81,7 @@ function groupStateSignature() {
     appState.memberships.map((member) => `${member.id}:${member.group_id}:${member.groups?.name || ''}:${member.role}:${member.status}`).join('|'),
     appState.members.map((member) => `${member.id}:${member.user_id}:${member.role}:${member.status}:${member.profiles?.alias || ''}:${member.profiles?.email || ''}:${member.profiles?.phone || ''}:${member.profiles?.show_phone}`).join('|'),
     appState.invites.map((invite) => `${invite.id}:${invite.email}:${invite.phone || ''}:${invite.alias || ''}:${invite.status}`).join('|'),
+    appState.presence.map((presence) => `${presence.group_id}:${presence.user_id}:${presence.last_seen}:${presence.is_sharing_location}`).join('|'),
   ].join('::');
 }
 
@@ -93,12 +99,30 @@ function renderAll() {
   renderProfile();
   renderGroups(async () => {
     await loadGroups();
-    await Promise.all([loadMembers(), loadInvites(), loadChatData(), loadLocations()]);
+    await Promise.all([loadMembers(), loadInvites(), loadPresence(), loadChatData(), loadLocations()]);
+    renderAll();
+  });
+  renderAdmin(async () => {
+    await loadGroups();
+    await Promise.all([loadMembers(), loadInvites(), loadPresence(), loadChatData(), loadLocations()]);
     renderAll();
   });
   renderMapView(reloadAll);
   renderMapControls(reloadAll);
   renderChat();
+  setView(appState.user ? appState.selectedView : 'profile');
+  updateNavBadges();
+  renderIcons();
+}
+
+function refreshGroupAdminViews() {
+  const onChanged = async () => {
+    await loadGroups();
+    await Promise.all([loadMembers(), loadInvites(), loadPresence(), loadChatData(), loadLocations()]);
+    renderAll();
+  };
+  renderGroups(onChanged);
+  renderAdmin(onChanged);
   setView(appState.user ? appState.selectedView : 'profile');
   updateNavBadges();
   renderIcons();

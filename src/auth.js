@@ -1,6 +1,6 @@
 import { requireSupabase, supabase } from './supabase.js';
 import { appState, setLocationSharingEnabled, SYMBOLS, SYMBOL_COLORS } from './state.js';
-import { refreshMapLayers, startSharing, stopSharing } from './map.js';
+import { clearOwnLocation, clearOwnPresence, refreshMapLayers, startSharing, stopSharing, touchPresence } from './map.js';
 import { el, friendlyError, icon, renderIcons, setSessionPill, showToast, symbolNode } from './ui.js';
 
 let onAuthChanged = async () => {};
@@ -190,6 +190,7 @@ export function renderProfile() {
     setLocationSharingEnabled(shareToggle.checked);
     if (shareToggle.checked) startSharing();
     else stopSharing();
+    void touchPresence();
   });
 
   const save = async (event) => {
@@ -219,6 +220,12 @@ export function renderProfile() {
       console.error(error);
       showToast(friendlyError(error, 'Kunde inte spara profilen.'), 'error');
     }
+  };
+
+  const signOut = async () => {
+    await clearOwnLocation();
+    await clearOwnPresence();
+    await requireSupabase().auth.signOut();
   };
 
   const getSelectedSymbol = () => SYMBOLS.find((item) => item.id === selectedSymbol) || SYMBOLS[0];
@@ -269,7 +276,7 @@ export function renderProfile() {
         el('label', { className: 'toggle-row' }, [showPhone, el('span', { text: 'Visa mobilnummer för gruppmedlemmar' })]),
         el('label', { className: 'toggle-row' }, [shareToggle, el('span', { text: 'Visa och dela min position' })]),
         el('button', { className: 'primary', type: 'submit' }, [icon('save', 'Spara'), 'Spara profil']),
-        el('button', { className: 'ghost', type: 'button', onClick: () => requireSupabase().auth.signOut() }, [icon('log-out', 'Logga ut'), 'Logga ut']),
+        el('button', { className: 'ghost', type: 'button', onClick: signOut }, [icon('log-out', 'Logga ut'), 'Logga ut']),
       ]),
     ]),
   );
