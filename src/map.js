@@ -182,7 +182,7 @@ function initMap() {
     if (programmaticMapMove) return;
     userAdjustedMapView = true;
   });
-  if (lastOwnPosition && !shouldUseGroupOwnMarker()) {
+  if (lastOwnPosition) {
     ownMarker = L.marker([lastOwnPosition.latitude, lastOwnPosition.longitude], { icon: ownPositionIcon() }).addTo(map);
     bindMemberPopup(ownMarker, appState.user.id, () => lastOwnPosition);
   }
@@ -208,10 +208,6 @@ export async function refreshMapLayers() {
   }
   loadHiddenSentLocations();
   sentLocationsLayer.clearLayers();
-  if (shouldUseGroupOwnMarker() && ownMarker) {
-    ownMarker.remove();
-    ownMarker = null;
-  }
   if (!appState.activeGroup || !isApprovedMember()) {
     clearMemberMarkers();
     removeGeoTiffLayers(map);
@@ -754,16 +750,12 @@ export async function clearOwnLocation() {
 }
 
 function shouldShowMemberOnMap(location) {
+  if (location.user_id === appState.user?.id) return false;
   if (!location?.updated_at) return false;
   if (Date.now() - new Date(location.updated_at).getTime() > HIDDEN_LOCATION_MS) return false;
   const member = appState.members.find((item) => item.user_id === location.user_id && item.status === 'approved');
   if (!member) return false;
-  if (location.user_id === appState.user?.id) return Boolean(appState.locationSharingEnabled);
   return true;
-}
-
-function shouldUseGroupOwnMarker() {
-  return Boolean(appState.activeGroupId && appState.user && appState.locationSharingEnabled);
 }
 
 async function handlePosition(position) {
@@ -773,21 +765,14 @@ async function handlePosition(position) {
     lastPositionLogAt = Date.now();
     logEvent(`GPS WGS84: lat ${latitude.toFixed(6)}, lon ${longitude.toFixed(6)}, noggrannhet ±${Math.round(accuracy || 0)} m.`, 'info');
   }
-  if (shouldUseGroupOwnMarker()) {
-    if (ownMarker) {
-      ownMarker.remove();
-      ownMarker = null;
-    }
-  } else {
-    if (map && !ownMarker && !userAdjustedMapView && !autoCenteredOwnPosition) {
-      setMapView([latitude, longitude], 15);
-      autoCenteredOwnPosition = true;
-    }
-    if (ownMarker) ownMarker.setLatLng([latitude, longitude]);
-    else ownMarker = L.marker([latitude, longitude], { icon: ownPositionIcon() }).addTo(map);
-    ownMarker.setIcon(ownPositionIcon());
-    bindMemberPopup(ownMarker, appState.user.id, () => lastOwnPosition);
+  if (map && !ownMarker && !userAdjustedMapView && !autoCenteredOwnPosition) {
+    setMapView([latitude, longitude], 15);
+    autoCenteredOwnPosition = true;
   }
+  if (ownMarker) ownMarker.setLatLng([latitude, longitude]);
+  else ownMarker = L.marker([latitude, longitude], { icon: ownPositionIcon() }).addTo(map);
+  ownMarker.setIcon(ownPositionIcon());
+  bindMemberPopup(ownMarker, appState.user.id, () => lastOwnPosition);
 
   const moved = lastSent.lat === null || distanceMeters(lastSent.lat, lastSent.lng, latitude, longitude) > 15;
   const enoughTime = Date.now() - lastSent.at > 10000;
