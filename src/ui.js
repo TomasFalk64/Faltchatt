@@ -4,6 +4,7 @@ import { appState, getSymbol } from './state.js';
 const toastTimers = new Set();
 const logEntries = [];
 let topbarGroupChangeHandler = async () => {};
+let topbarUserActionHandler = async () => {};
 
 export function el(tag, options = {}, children = []) {
   const node = document.createElement(tag);
@@ -159,6 +160,10 @@ export function setTopbarGroupChangeHandler(handler) {
   topbarGroupChangeHandler = handler || (async () => {});
 }
 
+export function setTopbarUserActionHandler(handler) {
+  topbarUserActionHandler = handler || (async () => {});
+}
+
 export function updateNavBadges() {
   const hasPendingMembers = appState.members.some((member) => member.status === 'pending');
   const activeMembership = appState.memberships.find((member) => member.group_id === appState.activeGroupId);
@@ -233,8 +238,45 @@ function navButton(iconName, text, view) {
 export function setSessionPill() {
   const pill = document.querySelector('#session-pill');
   if (!pill) return;
-  pill.textContent = appState.user ? appState.profile?.alias || appState.user.email : 'Inte inloggad';
+  pill.replaceChildren();
+  if (appState.user) {
+    pill.append(topbarUserMenu());
+  } else {
+    pill.textContent = 'Inte inloggad';
+  }
   renderTopbarGroupSelector();
+}
+
+function topbarUserMenu() {
+  const label = topbarUserLabel();
+  const details = el('details', { className: 'topbar-user-menu' }, [
+    el('summary', { title: label }, [el('span', { text: label })]),
+    el('div', { className: 'topbar-user-dropdown' }, [
+      el('button', {
+        type: 'button',
+        onClick: async () => {
+          details.open = false;
+          await topbarUserActionHandler('profile');
+        },
+      }, [icon('user', 'Profil'), 'Profil']),
+      el('button', {
+        type: 'button',
+        className: 'topbar-user-signout',
+        onClick: async () => {
+          details.open = false;
+          await topbarUserActionHandler('signout');
+        },
+      }, [icon('log-out', 'Logga ut'), 'Logga ut']),
+    ]),
+  ]);
+  return details;
+}
+
+function topbarUserLabel() {
+  const alias = appState.profile?.alias?.trim();
+  if (alias) return alias;
+  const emailPrefix = appState.user?.email?.split('@')[0]?.trim();
+  return emailPrefix || 'Profil';
 }
 
 function renderTopbarGroupSelector() {

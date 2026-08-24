@@ -631,7 +631,11 @@ async function syncAllNow(onChanged) {
 
 function centerVisibleMembers() {
   if (!map) return;
-  const markers = [...memberMarkers.values(), ...memberClusterMarkers.values()].filter((marker) => map.hasLayer(marker));
+  const markers = [
+    ...(ownMarker ? [ownMarker] : []),
+    ...memberMarkers.values(),
+    ...memberClusterMarkers.values(),
+  ].filter((marker) => map.hasLayer(marker));
   if (!markers.length) {
     showToast('Inga synliga gruppmedlemmar på kartan.', 'info');
     return;
@@ -681,6 +685,7 @@ export function stopSharing() {
   watchId = null;
   lastOwnPosition = null;
   lastSent = { at: 0, lat: null, lng: null };
+  autoCenteredOwnPosition = false;
   if (ownMarker) {
     ownMarker.remove();
     ownMarker = null;

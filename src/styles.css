@@ -114,13 +114,14 @@ code {
 .topbar-group-select {
   width: min(22rem, 38vw);
   min-height: 30px;
-  border-color: #b7c5d3;
+  border: 0;
   padding: 0.25rem 1.7rem 0.25rem 0.55rem;
-  background-color: #f8fafc;
+  background-color: transparent;
   color: #17324d;
   font-size: 0.86rem;
   font-weight: 800;
   text-align: center;
+  box-shadow: none;
 }
 
 .topbar-group-info {
@@ -184,11 +185,65 @@ code {
   grid-area: session;
   justify-self: end;
   max-width: 45vw;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: #526170;
   font-size: 0.84rem;
+}
+
+.topbar-user-menu {
+  position: relative;
+  max-width: 100%;
+}
+
+.topbar-user-menu summary {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0;
+  color: #526170;
+  cursor: pointer;
+  list-style: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-user-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.topbar-user-dropdown {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 700;
+  display: grid;
+  min-width: 8.5rem;
+  border: 1px solid #cfd8e3;
+  border-radius: 7px;
+  padding: 0.25rem;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(20, 33, 45, 0.18);
+}
+
+.topbar-user-dropdown button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.45rem;
+  min-height: 32px;
+  border-radius: 5px;
+  padding: 0.35rem 0.45rem;
+  background: transparent;
+  color: #334155;
+  font-weight: 750;
+}
+
+.topbar-user-dropdown button:hover,
+.topbar-user-dropdown button:focus-visible {
+  background: #eef6f8;
+}
+
+.topbar-user-dropdown .topbar-user-signout {
+  color: #0e7490;
 }
 
 .workspace {
@@ -1739,6 +1794,10 @@ code {
   .session-pill {
     max-width: 26vw;
     font-size: 0.76rem;
+  }
+
+  .topbar-user-dropdown {
+    min-width: 7.5rem;
   }
 
   .map-coordinate-readout {

@@ -1,11 +1,11 @@
 import './styles.css';
 import { isSupabaseConfigured } from './supabase.js';
-import { initAuth, renderAuth, renderProfile, setAuthChangeHandler } from './auth.js';
+import { initAuth, renderAuth, renderProfile, setAuthChangeHandler, signOutUser } from './auth.js';
 import { loadGroups, loadPresence, refreshGroupDynamics, refreshMemberList, renderAdmin, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
 import { loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
 import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, startPresenceHeartbeat, startSharing, stopPresenceHeartbeat, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
 import { appState, setActiveGroupId } from './state.js';
-import { renderAppShell, renderIcons, setSessionPill, setTopbarGroupChangeHandler, setView, showToast, updateNavBadges } from './ui.js';
+import { renderAppShell, renderIcons, setSessionPill, setTopbarGroupChangeHandler, setTopbarUserActionHandler, setView, showToast, updateNavBadges } from './ui.js';
 
 async function bootstrap() {
   renderAppShell();
@@ -18,6 +18,13 @@ async function bootstrap() {
   setTopbarGroupChangeHandler(async (groupId) => {
     setActiveGroupId(groupId);
     await handleUserChange();
+  });
+  setTopbarUserActionHandler(async (action) => {
+    if (action === 'profile') {
+      setView('profile');
+      return;
+    }
+    if (action === 'signout') await signOutUser();
   });
   setAuthChangeHandler(reloadAll);
   await initAuth();

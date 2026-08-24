@@ -9,6 +9,12 @@ export function setAuthChangeHandler(handler) {
   onAuthChanged = handler;
 }
 
+export async function signOutUser() {
+  await clearOwnLocation();
+  await clearOwnPresence();
+  await requireSupabase().auth.signOut();
+}
+
 export async function initAuth() {
   if (!supabase) return;
   if (isRecoveryUrl()) appState.passwordRecovery = true;
@@ -222,12 +228,6 @@ export function renderProfile() {
     }
   };
 
-  const signOut = async () => {
-    await clearOwnLocation();
-    await clearOwnPresence();
-    await requireSupabase().auth.signOut();
-  };
-
   const deleteAccount = async () => {
     const email = appState.user.email || '';
     const confirmed = window.confirm(
@@ -303,7 +303,7 @@ export function renderProfile() {
         el('label', { className: 'toggle-row' }, [showPhone, el('span', { text: 'Visa mobilnummer för gruppmedlemmar' })]),
         el('label', { className: 'toggle-row' }, [shareToggle, el('span', { text: 'Visa och dela min position' })]),
         el('button', { className: 'primary', type: 'submit' }, [icon('save', 'Spara'), 'Spara profil']),
-        el('button', { className: 'danger-button signout-button', type: 'button', onClick: signOut }, [icon('log-out', 'Logga ut'), 'Logga ut']),
+        el('button', { className: 'danger-button signout-button', type: 'button', onClick: signOutUser }, [icon('log-out', 'Logga ut'), 'Logga ut']),
         el('button', { className: 'danger-button', type: 'button', onClick: deleteAccount }, [icon('user-x', 'Ta bort konto'), 'Ta bort mitt konto']),
       ]),
     ]),
