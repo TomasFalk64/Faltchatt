@@ -66,7 +66,7 @@ export async function ensureProfile() {
   if (!user) return null;
   const { data, error } = await client
     .from('profiles')
-    .select('id, alias, symbol, symbol_color, show_alias, updated_at')
+    .select('id, alias, symbol, symbol_color, updated_at')
     .eq('id', user.id)
     .maybeSingle();
   if (error) throw error;
@@ -80,8 +80,8 @@ export async function ensureProfile() {
   const initialColor = randomItem(SYMBOL_COLORS);
   const { data: created, error: createError } = await client
     .from('profiles')
-    .insert({ id: user.id, alias, symbol: initialSymbol, symbol_color: initialColor, show_alias: true })
-    .select('id, alias, symbol, symbol_color, show_alias, updated_at')
+    .insert({ id: user.id, alias, symbol: initialSymbol, symbol_color: initialColor })
+    .select('id, alias, symbol, symbol_color, updated_at')
     .single();
   if (createError) throw createError;
   appState.profile = created;
@@ -197,9 +197,7 @@ export function renderProfile() {
   const alias = el('input', { value: appState.profile?.alias || '', placeholder: 'Välj alias' });
   let selectedSymbol = SYMBOLS.some((item) => item.id === appState.profile?.symbol) ? appState.profile.symbol : SYMBOLS[0].id;
   let selectedColor = appState.profile?.symbol_color || SYMBOL_COLORS[0];
-  const showAlias = el('input', { type: 'checkbox' });
   const shareToggle = el('input', { type: 'checkbox', id: 'profile-share-location' });
-  showAlias.checked = appState.profile?.show_alias !== false;
   shareToggle.checked = appState.locationSharingEnabled;
   shareToggle.addEventListener('change', () => {
     setLocationSharingEnabled(shareToggle.checked);
@@ -218,10 +216,9 @@ export function renderProfile() {
           alias: alias.value.trim() || 'Fältanvändare',
           symbol: selectedSymbol,
           symbol_color: selectedColor,
-          show_alias: showAlias.checked,
           updated_at: new Date().toISOString(),
         })
-        .select('id, alias, symbol, symbol_color, show_alias, updated_at')
+        .select('id, alias, symbol, symbol_color, updated_at')
         .single();
       if (error) throw error;
       appState.profile = data;
@@ -303,7 +300,6 @@ export function renderProfile() {
         el('fieldset', { className: 'symbol-picker' }, [el('legend', { text: 'Symbol' }), ...symbolButtons]),
         el('fieldset', { className: 'color-picker' }, [el('legend', { text: 'Symbolfärg' }), ...colorButtons]),
         el('div', { className: 'symbol-preview' }, [previewGlyph, 'Visas på kartan']),
-        el('label', { className: 'toggle-row' }, [showAlias, el('span', { text: 'Visa alias i chatt och kart-popup' })]),
         el('label', { className: 'toggle-row' }, [shareToggle, el('span', { text: 'Visa och dela min position' })]),
         el('button', { className: 'primary', type: 'submit' }, [icon('save', 'Spara'), 'Spara profil']),
         el('button', { className: 'danger-button signout-button', type: 'button', onClick: signOutUser }, [icon('log-out', 'Logga ut'), 'Logga ut']),

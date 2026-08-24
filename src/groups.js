@@ -6,10 +6,15 @@ let groupChannel = null;
 let groupRefreshTimer = null;
 
 export function isApprovedMember() {
-  return appState.memberships.some((member) => member.group_id === appState.activeGroupId && member.status === 'approved');
+  return Boolean(
+    appState.activeGroup &&
+      !isGroupExpired(appState.activeGroup) &&
+      appState.memberships.some((member) => member.group_id === appState.activeGroupId && member.status === 'approved'),
+  );
 }
 
 export function currentRole() {
+  if (!appState.activeGroup || isGroupExpired(appState.activeGroup)) return null;
   return (
     appState.memberships.find((member) => member.group_id === appState.activeGroupId)?.role ||
     appState.members.find((member) => member.group_id === appState.activeGroupId && member.user_id === appState.user?.id)?.role ||
@@ -34,12 +39,12 @@ export async function loadGroups() {
     .eq('user_id', appState.user.id)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  appState.memberships = memberships || [];
+  appState.memberships = (memberships || []).filter((membership) => membership.groups && !isGroupExpired(membership.groups));
 
   if (appState.activeGroupId) {
     const membership = appState.memberships.find((item) => item.group_id === appState.activeGroupId);
-    if (membership) {
-      appState.activeGroup = membership.groups || null;
+    if (membership?.groups && !isGroupExpired(membership.groups)) {
+      appState.activeGroup = membership.groups;
       await loadMembers();
       await loadPresence();
     } else {
@@ -59,7 +64,7 @@ export async function loadMembers() {
   if (!appState.activeGroupId) return;
   const { data, error } = await requireSupabase()
     .from('group_members')
-    .select('*, profiles(id, alias, symbol, symbol_color, show_alias)')
+    .select('*, profiles(id, alias, symbol, symbol_color)')
     .eq('group_id', appState.activeGroupId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -130,6 +135,17 @@ export function refreshMemberList(onChanged = async () => {}) {
   renderIcons();
 }
 
+function isGroupExpired(group) {
+  return Boolean(group?.expires_at && new Date(group.expires_at).getTime() <= Date.now());
+}
+
+function formatExpiry(value) {
+  return new Intl.DateTimeFormat('sv-SE', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
 function groupSelectControl(onChanged) {
   const groupSelect = el(
     'select',
@@ -186,6 +202,7 @@ export function renderAdmin(onChanged = async () => {}) {
 function activeGroupSummary() {
   if (!appState.activeGroup) return el('p', { className: 'muted', text: 'Skapa eller gå med i en grupp för att använda karta och chatt.' });
   const membership = appState.memberships.find((item) => item.group_id === appState.activeGroupId);
+  const expired = isGroupExpired(appState.activeGroup);
   return el('div', { className: 'group-summary' }, [
     el('div', { className: 'group-code-line' }, [
       el('span', { text: 'Gruppkod:' }),
@@ -194,12 +211,15 @@ function activeGroupSummary() {
         title: 'Ge gruppkoden till personer som ska begära medlemskap i gruppen.',
       }),
     ]),
-    membership?.status !== 'approved' ? el('p', { className: 'warning-text', text: 'Du väntar på godkännande innan karta och chatt öppnas.' }) : null,
+    appState.activeGroup.expires_at ? el('p', { className: 'muted', text: `Raderas automatiskt ${formatExpiry(appState.activeGroup.expires_at)}.` }) : null,
+    expired ? el('p', { className: 'warning-text', text: 'Gruppen har gått ut.' }) : null,
+    !expired && membership?.status !== 'approved' ? el('p', { className: 'warning-text', text: 'Du väntar på godkännande innan karta och chatt öppnas.' }) : null,
   ]);
 }
 
 function groupOptionText(membership) {
   const name = membership.groups?.name || `Grupp ${membership.group_id.slice(0, 8)}`;
+  if (membership.groups && isGroupExpired(membership.groups)) return `${name} (utgången)`;
   return membership.status === 'approved' ? name : `${name} (${membership.status})`;
 }
 
@@ -216,10 +236,11 @@ function createGroupForm(onChanged) {
       await onChanged();
       const createdMembership = appState.memberships.find((membership) => membership.group_id === groupId);
       const joinCode = createdMembership?.groups?.join_code;
+      const expiryText = createdMembership?.groups?.expires_at ? `\n\nGruppen raderas automatiskt ${formatExpiry(createdMembership.groups.expires_at)}.` : '\n\nGruppen raderas automatiskt efter 7 dagar.';
       window.alert(
         joinCode
-          ? `Gruppen "${groupName}" är skapad och går att ansluta till med gruppkod:\n\n${joinCode}`
-          : `Gruppen "${groupName}" är skapad och går att ansluta till.`,
+          ? `Gruppen "${groupName}" är skapad och går att ansluta till med gruppkod:\n\n${joinCode}${expiryText}`
+          : `Gruppen "${groupName}" är skapad och går att ansluta till.${expiryText}`,
       );
       showToast('Gruppen skapades.', 'success');
     } catch (error) {
@@ -229,6 +250,7 @@ function createGroupForm(onChanged) {
   };
   return el('form', { className: 'stack subsection create-group-section', onSubmit: submit }, [
     el('h3', { text: 'Skapa grupp' }),
+    el('p', { className: 'muted', text: 'Gruppen raderas automatiskt efter 7 dagar. Max 30 personer per grupp och max 30 pågående grupper totalt.' }),
     el('div', { className: 'compact-form-row' }, [
       input,
       el('button', { className: 'primary', type: 'submit' }, [icon('plus', 'Skapa'), 'Skapa']),

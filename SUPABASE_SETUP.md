@@ -44,6 +44,7 @@ Om du använder SQL Editor i Dashboard, kör filerna i denna ordning:
 22. `supabase/migrations/022_privacy_simplification.sql`
 23. `supabase/migrations/023_fix_create_group_profile_privacy.sql`
 24. `supabase/migrations/024_random_initial_profile_symbol.sql`
+25. `supabase/migrations/025_temporary_groups_limits.sql`
 
 ## 3. Authentication
 
@@ -89,9 +90,12 @@ Deploya vid behov:
 ```bash
 supabase functions deploy delete-my-account
 supabase functions deploy cleanup-inactive-accounts
+supabase functions deploy cleanup-expired-groups
 ```
 
 `delete-my-account` använder `SUPABASE_URL` och `SUPABASE_SERVICE_ROLE_KEY`, som normalt redan finns i Edge Function-miljön.
+
+`cleanup-expired-groups` raderar grupper vars 7-dagars giltighetstid har gått ut och tar även bort gruppens GeoTIFF-filer från Storage. Den kan schemaläggas server-side en gång per dygn, till exempel kl. 03:00.
 
 `cleanup-inactive-accounts` är grunden för automatisk radering efter 12 månaders inaktivitet. Den kan köras från en server-side scheduler och hämtar eventuell e-post bara från Supabase Auth. Om varningsmail ska skickas cirka 30 dagar innan radering behövs Brevo-secrets i Edge Function-miljön:
 
@@ -101,6 +105,7 @@ supabase secrets set BREVO_SENDER_EMAIL=avsandare@example.com
 supabase secrets set BREVO_SENDER_NAME=Fältchatt
 supabase secrets set FALTCHATT_APP_URL=https://tomasfalk64.github.io/Faltchatt/
 supabase secrets set INACTIVE_ACCOUNT_CLEANUP_SECRET=valfri_hemlig_strang
+supabase secrets set EXPIRED_GROUP_CLEANUP_SECRET=valfri_hemlig_strang
 ```
 
 Grupputskick via e-post och e-postbaserad medlemsimport används inte längre. Inbjudan sker med gruppkod eller invite-länk.
@@ -112,8 +117,8 @@ RLS är aktivt på alla apptabeller.
 Grundprinciperna:
 
 - Profiler: användaren kan läsa och uppdatera sig själv samt läsa godkända gruppmedlemmars begränsade profilinfo. E-post och mobilnummer ska inte finnas i apptabellerna.
-- Grupper: endast godkända medlemmar kan läsa; owner/admin kan uppdatera administrativa fält.
-- Medlemskap: användare går med via `request_group_membership`; owner/admin kan godkänna och avvisa.
+- Grupper: endast godkända medlemmar kan läsa pågående grupper; owner/admin kan uppdatera administrativa fält innan gruppen gått ut. Grupper lever i 7 dagar.
+- Medlemskap: användare går med via `request_group_membership`; owner/admin kan godkänna och avvisa. Max 30 `approved + pending` räknas per grupp.
 - Inbjudningar: sker via gruppkod/invite-länk, inte via lagrade e-postadresser.
 - Positioner: godkända medlemmar kan läsa gruppens positioner; användaren kan bara skriva sin egen rad.
 - Meddelanden: godkända medlemmar kan läsa och skriva som sig själva.

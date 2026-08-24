@@ -6,11 +6,11 @@ Fältchatt är en webb-MVP för gruppbaserad fältkommunikation. Appen använder
 
 - Konto med e-post/lösenord, e-postbekräftelse och lösenordsåterställning.
 - Profil med alias, färg och personlig symbol. E-post ligger bara i Supabase Auth.
-- Grupper med gruppkod, pending/godkända medlemskap och owner/admin-godkännande.
+- Grupper med gruppkod, pending/godkända medlemskap och owner/admin-godkännande. Grupper är tillfälliga och raderas efter 7 dagar.
 - Notisprickar i sidnaven för pending medlemskap och olästa chattmeddelanden.
 - Leaflet-karta med OpenStreetMap, egen position och gruppmedlemmars senaste positioner.
 - Platsmeddelanden från kartan till chatten, med möjlighet att dölja platsnålar lokalt.
-- GeoTIFF-uppladdning till Supabase Storage, lista över uppladdade kartor, visa/dölj och radera.
+- GeoTIFF-uppladdning till Supabase Storage, lista över uppladdade kartor, visa/dölj och radera. Utgångna gruppers kartfiler raderas av server-side cleanup.
 - Gruppchatt med ljudnotis från `public/data/golgroda.mp3` vid nya meddelanden från andra.
 - Polls i chatten med svarsalternativ och enkel sammanställning.
 - Integritetssida som beskriver lagrade uppgifter, positionsdelning och kontoradering.
@@ -70,7 +70,7 @@ Viktigt för auth:
 - Lägg till lokal redirect URL, exempelvis `http://127.0.0.1:5173`, i Supabase Auth settings.
 - Supabase standardmail har låg rate limit. För rimlig testning behövs ofta custom SMTP, till exempel Brevo eller Resend.
 - Lösenordsåterställning loggar in användaren i recovery-läge; appen visar då formulär för nytt lösenord i Profil.
-- Fältchatts vanliga tabeller ska inte lagra e-postadresser eller mobilnummer.
+- Fältchatts vanliga tabeller ska inte lagra e-postadresser eller mobilnummer. Max 30 personer per grupp och max 30 pågående grupper totalt.
 
 ## Projektstruktur
 

@@ -137,11 +137,6 @@ export function memberColor(userId) {
   return member?.profiles?.symbol_color || member?.profile?.symbol_color || '#17324d';
 }
 
-export function memberShowsAlias(userId) {
-  if (userId === appState.user?.id) return appState.profile?.show_alias !== false;
-  const member = appState.members.find((item) => item.user_id === userId);
-  return member?.profiles?.show_alias !== false;
-}
 
 export function setView(view) {
   appState.selectedView = view;

@@ -1,7 +1,7 @@
 ﻿import { requireSupabase } from './supabase.js';
 import { appState } from './state.js';
 import { isApprovedMember } from './groups.js';
-import { el, formatTime, friendlyError, icon, memberColor, memberName, memberShowsAlias, memberSymbol, memberSymbolId, renderIcons, showToast, symbolNode, updateNavBadges } from './ui.js';
+import { el, formatTime, friendlyError, icon, memberColor, memberName, memberSymbolId, renderIcons, showToast, symbolNode, updateNavBadges } from './ui.js';
 
 let chatChannel = null;
 let answerChannel = null;
@@ -289,7 +289,7 @@ function showMessageDetails(anchor, text) {
 }
 
 function answerLabel(userId) {
-  return memberShowsAlias(userId) ? memberName(userId) : memberSymbol(userId);
+  return memberName(userId);
 }
 
 function composer() {
