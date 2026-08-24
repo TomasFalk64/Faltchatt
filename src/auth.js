@@ -1,6 +1,6 @@
 import { requireSupabase, supabase } from './supabase.js';
 import { appState, setLocationSharingEnabled, SYMBOLS, SYMBOL_COLORS } from './state.js';
-import { clearOwnLocation, clearOwnPresence, refreshMapLayers, startSharing, stopSharing, touchPresence } from './map.js';
+import { centerOnNextOwnGpsPosition, clearOwnLocation, clearOwnPresence, refreshMapLayers, startSharing, stopSharing, touchPresence } from './map.js';
 import { el, friendlyError, icon, renderIcons, setSessionPill, showToast, symbolNode } from './ui.js';
 
 let onAuthChanged = async () => {};
@@ -39,11 +39,13 @@ function authRedirectUrl() {
 }
 
 async function applySession(session) {
+  const previousUserId = appState.user?.id || null;
   appState.session = session;
   appState.user = session?.user || null;
   if (appState.user) {
     await ensureProfile();
     await claimGroupInvites();
+    if (appState.locationSharingEnabled && previousUserId !== appState.user.id) centerOnNextOwnGpsPosition();
   } else {
     appState.profile = null;
   }

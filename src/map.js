@@ -30,6 +30,7 @@ let lastAutoFitGroupId = null;
 let userAdjustedMapView = false;
 let programmaticMapMove = false;
 let autoCenteredOwnPosition = false;
+let centerOnNextOwnPosition = false;
 const FADED_LOCATION_MS = 10 * 60 * 1000;
 const HIDDEN_LOCATION_MS = 60 * 60 * 1000;
 
@@ -615,6 +616,11 @@ export function startSharing() {
   });
 }
 
+export function centerOnNextOwnGpsPosition() {
+  centerOnNextOwnPosition = true;
+  autoCenteredOwnPosition = false;
+}
+
 async function syncAllNow(onChanged) {
   showToast('Synkar gruppen...', 'info');
   try {
@@ -686,6 +692,7 @@ export function stopSharing() {
   lastOwnPosition = null;
   lastSent = { at: 0, lat: null, lng: null };
   autoCenteredOwnPosition = false;
+  centerOnNextOwnPosition = false;
   if (ownMarker) {
     ownMarker.remove();
     ownMarker = null;
@@ -770,9 +777,10 @@ async function handlePosition(position) {
     lastPositionLogAt = Date.now();
     logEvent(`GPS WGS84: lat ${latitude.toFixed(6)}, lon ${longitude.toFixed(6)}, noggrannhet ±${Math.round(accuracy || 0)} m.`, 'info');
   }
-  if (map && !ownMarker && !userAdjustedMapView && !autoCenteredOwnPosition) {
+  if (map && (centerOnNextOwnPosition || (!ownMarker && !userAdjustedMapView && !autoCenteredOwnPosition))) {
     setMapView([latitude, longitude], 15);
     autoCenteredOwnPosition = true;
+    centerOnNextOwnPosition = false;
   }
   if (ownMarker) ownMarker.setLatLng([latitude, longitude]);
   else ownMarker = L.marker([latitude, longitude], { icon: ownPositionIcon() }).addTo(map);
@@ -946,5 +954,6 @@ window.addEventListener('faltchatt:focus-location', focusRequestedLocation);
 window.addEventListener('faltchatt:group-changing', () => {
   userAdjustedMapView = false;
   autoCenteredOwnPosition = false;
+  centerOnNextOwnPosition = false;
   void clearOwnPresence();
 });
