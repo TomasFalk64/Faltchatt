@@ -44,7 +44,7 @@ async function applySession(session) {
   appState.user = session?.user || null;
   if (appState.user) {
     await ensureProfile();
-    await claimGroupInvites();
+    await touchAccountActivity();
     if (appState.locationSharingEnabled && previousUserId !== appState.user.id) centerOnNextOwnGpsPosition();
   } else {
     appState.profile = null;
@@ -52,11 +52,11 @@ async function applySession(session) {
   setSessionPill();
 }
 
-async function claimGroupInvites() {
+async function touchAccountActivity() {
   try {
-    await requireSupabase().rpc('claim_group_invites');
+    await requireSupabase().rpc('touch_account_activity');
   } catch (error) {
-    console.warn('Kunde inte kontrollera gruppinbjudningar.', error);
+    console.warn('Kunde inte uppdatera kontoaktivitet.', error);
   }
 }
 
@@ -64,22 +64,32 @@ export async function ensureProfile() {
   const client = requireSupabase();
   const user = appState.user;
   if (!user) return null;
-  const { data, error } = await client.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  const { data, error } = await client
+    .from('profiles')
+    .select('id, alias, symbol, symbol_color, show_alias, updated_at')
+    .eq('id', user.id)
+    .maybeSingle();
   if (error) throw error;
   if (data) {
     appState.profile = data;
     return data;
   }
 
-  const alias = user.email?.split('@')[0] || 'Faltanvandare';
+  const alias = 'Fältanvändare';
+  const initialSymbol = randomItem(SYMBOLS).id;
+  const initialColor = randomItem(SYMBOL_COLORS);
   const { data: created, error: createError } = await client
     .from('profiles')
-    .insert({ id: user.id, alias, symbol: SYMBOLS[0].id, symbol_color: SYMBOL_COLORS[0], show_alias: true, show_phone: true, email: user.email })
-    .select('*')
+    .insert({ id: user.id, alias, symbol: initialSymbol, symbol_color: initialColor, show_alias: true })
+    .select('id, alias, symbol, symbol_color, show_alias, updated_at')
     .single();
   if (createError) throw createError;
   appState.profile = created;
   return created;
+}
+
+function randomItem(items) {
+  return items[Math.floor(Math.random() * items.length)];
 }
 
 export function renderAuth() {
@@ -185,14 +195,11 @@ export function renderProfile() {
   if (!appState.user) return;
 
   const alias = el('input', { value: appState.profile?.alias || '', placeholder: 'Välj alias' });
-  const phone = el('input', { value: appState.profile?.phone || '', placeholder: 'Mobilnummer', type: 'tel' });
   let selectedSymbol = SYMBOLS.some((item) => item.id === appState.profile?.symbol) ? appState.profile.symbol : SYMBOLS[0].id;
   let selectedColor = appState.profile?.symbol_color || SYMBOL_COLORS[0];
   const showAlias = el('input', { type: 'checkbox' });
-  const showPhone = el('input', { type: 'checkbox' });
   const shareToggle = el('input', { type: 'checkbox', id: 'profile-share-location' });
   showAlias.checked = appState.profile?.show_alias !== false;
-  showPhone.checked = appState.profile?.show_phone !== false;
   shareToggle.checked = appState.locationSharingEnabled;
   shareToggle.addEventListener('change', () => {
     setLocationSharingEnabled(shareToggle.checked);
@@ -208,16 +215,13 @@ export function renderProfile() {
         .from('profiles')
         .upsert({
           id: appState.user.id,
-          alias: alias.value.trim() || 'Faltanvandare',
-          phone: phone.value.trim() || null,
+          alias: alias.value.trim() || 'Fältanvändare',
           symbol: selectedSymbol,
           symbol_color: selectedColor,
           show_alias: showAlias.checked,
-          show_phone: showPhone.checked,
-          email: appState.user.email,
           updated_at: new Date().toISOString(),
         })
-        .select('*')
+        .select('id, alias, symbol, symbol_color, show_alias, updated_at')
         .single();
       if (error) throw error;
       appState.profile = data;
@@ -299,10 +303,7 @@ export function renderProfile() {
         el('fieldset', { className: 'symbol-picker' }, [el('legend', { text: 'Symbol' }), ...symbolButtons]),
         el('fieldset', { className: 'color-picker' }, [el('legend', { text: 'Symbolfärg' }), ...colorButtons]),
         el('div', { className: 'symbol-preview' }, [previewGlyph, 'Visas på kartan']),
-        el('label', {}, ['E-post', el('input', { value: appState.user.email || '', disabled: true })]),
-        el('label', {}, ['Mobilnummer', phone]),
         el('label', { className: 'toggle-row' }, [showAlias, el('span', { text: 'Visa alias i chatt och kart-popup' })]),
-        el('label', { className: 'toggle-row' }, [showPhone, el('span', { text: 'Visa mobilnummer för gruppmedlemmar' })]),
         el('label', { className: 'toggle-row' }, [shareToggle, el('span', { text: 'Visa och dela min position' })]),
         el('button', { className: 'primary', type: 'submit' }, [icon('save', 'Spara'), 'Spara profil']),
         el('button', { className: 'danger-button signout-button', type: 'button', onClick: signOutUser }, [icon('log-out', 'Logga ut'), 'Logga ut']),
@@ -359,3 +360,4 @@ function passwordRecoveryForm() {
     el('button', { className: 'primary', type: 'submit' }, [icon('key-round', 'Spara'), 'Spara nytt lösenord']),
   ]);
 }
+

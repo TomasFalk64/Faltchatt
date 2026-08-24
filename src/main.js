@@ -4,6 +4,7 @@ import { initAuth, renderAuth, renderProfile, setAuthChangeHandler, signOutUser 
 import { loadGroups, loadPresence, refreshGroupDynamics, refreshMemberList, renderAdmin, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
 import { loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
 import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, startPresenceHeartbeat, startSharing, stopPresenceHeartbeat, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
+import { renderPrivacy } from './privacy.js';
 import { appState, setActiveGroupId } from './state.js';
 import { renderAppShell, renderIcons, setSessionPill, setTopbarGroupChangeHandler, setTopbarUserActionHandler, setView, showToast, updateNavBadges } from './ui.js';
 
@@ -40,7 +41,6 @@ async function reloadAll() {
       appState.activeGroup = null;
       appState.memberships = [];
       appState.members = [];
-      appState.invites = [];
       appState.presence = [];
       appState.messages = [];
       appState.locations = [];
@@ -101,8 +101,7 @@ function groupStateSignature() {
     appState.activeGroupId || '',
     appState.activeGroup?.name || '',
     appState.memberships.map((member) => `${member.id}:${member.group_id}:${member.groups?.name || ''}:${member.role}:${member.status}`).join('|'),
-    appState.members.map((member) => `${member.id}:${member.user_id}:${member.role}:${member.status}:${member.profiles?.alias || ''}:${member.profiles?.email || ''}:${member.profiles?.phone || ''}:${member.profiles?.show_phone}`).join('|'),
-    appState.invites.map((invite) => `${invite.id}:${invite.email}:${invite.phone || ''}:${invite.alias || ''}:${invite.status}`).join('|'),
+    appState.members.map((member) => `${member.id}:${member.user_id}:${member.role}:${member.status}:${member.profiles?.alias || ''}`).join('|'),
     appState.presence.map((presence) => `${presence.group_id}:${presence.user_id}:${presence.is_sharing_location}`).join('|'),
   ].join('::');
 }
@@ -121,6 +120,7 @@ function renderAll() {
   renderProfile();
   renderGroups(handleUserChange);
   renderAdmin(handleUserChange);
+  renderPrivacy();
   renderMapView(reloadAll);
   renderMapControls(reloadAll);
   renderChat();
@@ -140,3 +140,4 @@ function syncPresenceAndSharing() {
 }
 
 bootstrap();
+

@@ -41,6 +41,9 @@ Om du använder SQL Editor i Dashboard, kör filerna i denna ordning:
 19. `supabase/migrations/019_locations_delete_own.sql`
 20. `supabase/migrations/020_group_presence.sql`
 21. `supabase/migrations/021_delete_account_cleanup.sql`
+22. `supabase/migrations/022_privacy_simplification.sql`
+23. `supabase/migrations/023_fix_create_group_profile_privacy.sql`
+24. `supabase/migrations/024_random_initial_profile_symbol.sql`
 
 ## 3. Authentication
 
@@ -77,29 +80,30 @@ Migrationen lägger följande tabeller i `supabase_realtime`:
 
 Om SQL Editor säger att en tabell redan finns i publication kan du ignorera den raden eller ta bort motsvarande `alter publication`-rad och köra igen.
 
-## 6. Edge Functions och e-post
+## 6. Edge Functions
 
-Gruppadministrationens knapp `Skicka e-post till gruppen` använder Supabase Edge Function:
+Kontoradering och framtida inaktivitetsstädning körs server-side via Supabase Edge Functions. Service role key får aldrig ligga i frontend eller `.env.local`.
 
-```text
-supabase/functions/send-group-email
-supabase/functions/delete-my-account
-```
-
-Deploya funktionen och sätt följande secrets i Supabase:
+Deploya vid behov:
 
 ```bash
-supabase functions deploy send-group-email
 supabase functions deploy delete-my-account
+supabase functions deploy cleanup-inactive-accounts
+```
+
+`delete-my-account` använder `SUPABASE_URL` och `SUPABASE_SERVICE_ROLE_KEY`, som normalt redan finns i Edge Function-miljön.
+
+`cleanup-inactive-accounts` är grunden för automatisk radering efter 12 månaders inaktivitet. Den kan köras från en server-side scheduler och hämtar eventuell e-post bara från Supabase Auth. Om varningsmail ska skickas cirka 30 dagar innan radering behövs Brevo-secrets i Edge Function-miljön:
+
+```bash
 supabase secrets set BREVO_API_KEY=din_brevo_api_key
 supabase secrets set BREVO_SENDER_EMAIL=avsandare@example.com
 supabase secrets set BREVO_SENDER_NAME=Fältchatt
 supabase secrets set FALTCHATT_APP_URL=https://tomasfalk64.github.io/Faltchatt/
+supabase secrets set INACTIVE_ACCOUNT_CLEANUP_SECRET=valfri_hemlig_strang
 ```
 
-`delete-my-account` använder bara `SUPABASE_URL` och `SUPABASE_SERVICE_ROLE_KEY`, som normalt redan finns i Edge Function-miljön. Lägg aldrig service role key eller Brevo-nycklar i frontend eller `.env.local`.
-
-Om appen visar `Failed to send a request to the Edge Function` betyder det oftast att `send-group-email` inte är deployad i Supabase-projektet, eller att Edge Function-miljön saknar någon av secrets ovan. Kontrollera även Function Logs i Supabase Dashboard.
+Grupputskick via e-post och e-postbaserad medlemsimport används inte längre. Inbjudan sker med gruppkod eller invite-länk.
 
 ## 7. RLS-regler
 
@@ -107,10 +111,10 @@ RLS är aktivt på alla apptabeller.
 
 Grundprinciperna:
 
-- Profiler: användaren kan läsa och uppdatera sig själv samt läsa godkända gruppmedlemmars begränsade profilinfo.
+- Profiler: användaren kan läsa och uppdatera sig själv samt läsa godkända gruppmedlemmars begränsade profilinfo. E-post och mobilnummer ska inte finnas i apptabellerna.
 - Grupper: endast godkända medlemmar kan läsa; owner/admin kan uppdatera administrativa fält.
 - Medlemskap: användare går med via `request_group_membership`; owner/admin kan godkänna och avvisa.
-- Invites: endast owner/admin kan läsa gruppens invites; import, claim och återkallning sker via RPC.
+- Inbjudningar: sker via gruppkod/invite-länk, inte via lagrade e-postadresser.
 - Positioner: godkända medlemmar kan läsa gruppens positioner; användaren kan bara skriva sin egen rad.
 - Meddelanden: godkända medlemmar kan läsa och skriva som sig själva.
 - Frågor/svar: godkända medlemmar kan läsa; användaren kan skapa eller ändra sitt eget svar.

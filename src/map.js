@@ -358,8 +358,6 @@ function memberPopup(userId, location) {
   const updatedAt = location.updated_at || location.updatedAt;
   return el('div', { className: 'member-popup' }, [
     el('strong', { text: profile?.alias || memberName(userId) }),
-    profile?.email ? el('div', {}, [el('span', { text: 'E-post: ' }), el('a', { href: `mailto:${profile.email}`, text: profile.email })]) : null,
-    profile?.show_phone !== false && profile?.phone ? el('div', {}, [el('span', { text: 'Mobil: ' }), el('a', { href: `tel:${profile.phone}`, text: profile.phone })]) : null,
     el('div', {}, [el('span', { text: 'Senast uppdaterad: ' }), el('span', { text: updatedAt ? formatRelative(updatedAt) : 'okänd tid' })]),
     Number.isFinite(location.accuracy)
       ? el('div', {}, [el('span', { text: 'Noggrannhet: ' }), el('span', { text: `±${Math.round(location.accuracy)} m` })])
@@ -957,3 +955,4 @@ window.addEventListener('faltchatt:group-changing', () => {
   centerOnNextOwnPosition = false;
   void clearOwnPresence();
 });
+

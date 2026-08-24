@@ -1,4 +1,4 @@
-import { requireSupabase } from './supabase.js';
+﻿import { requireSupabase } from './supabase.js';
 import { appState } from './state.js';
 import { isApprovedMember } from './groups.js';
 import { el, formatTime, friendlyError, icon, memberColor, memberName, memberShowsAlias, memberSymbol, memberSymbolId, renderIcons, showToast, symbolNode, updateNavBadges } from './ui.js';
@@ -187,7 +187,7 @@ function renderMessage(message) {
           className: 'message-symbol-button',
           title: details,
           'aria-label': details,
-          onClick: () => showToast(details, 'info'),
+          onClick: (event) => showMessageDetails(event.currentTarget, details),
         }, [
           Object.assign(symbolNode(memberSymbolId(message.user_id), 'message-inline-symbol'), { style: `color: ${memberColor(message.user_id)}` }),
         ]),
@@ -203,7 +203,7 @@ function renderMessage(message) {
                 window.dispatchEvent(new CustomEvent('faltchatt:focus-location'));
               },
             },
-            [icon('map-pin', 'Visa'), 'Visa pa kartan'],
+            [icon('map-pin', 'Visa'), 'Visa på kartan'],
           )
         : null,
     ]),
@@ -226,7 +226,7 @@ function renderQuestionMessage(message) {
           className: 'message-symbol-button',
           title: details,
           'aria-label': details,
-          onClick: () => showToast(details, 'info'),
+          onClick: (event) => showMessageDetails(event.currentTarget, details),
         }, [
           Object.assign(symbolNode(memberSymbolId(message.user_id), 'message-inline-symbol'), { style: `color: ${memberColor(message.user_id)}` }),
         ]),
@@ -250,11 +250,42 @@ function renderQuestionMessage(message) {
       ),
       el('details', {}, [
         el('summary', { text: 'Svar och ej svarat' }),
-        el('p', { text: `Svarat: ${answers.map((answer) => `${answerLabel(answer.user_id)} - ${answer.question_options?.label || ''}`).join(', ') || 'Ingen annu'}` }),
+        el('p', { text: `Svarat: ${answers.map((answer) => `${answerLabel(answer.user_id)} - ${answer.question_options?.label || ''}`).join(', ') || 'Ingen ännu'}` }),
         el('p', { text: `Ej svarat: ${approved.filter((member) => !answeredIds.has(member.user_id)).map((member) => answerLabel(member.user_id)).join(', ') || 'Alla har svarat'}` }),
       ]),
     ]),
   ]);
+}
+
+function showMessageDetails(anchor, text) {
+  document.querySelectorAll('.message-detail-popover').forEach((node) => node.remove());
+  const popover = el('div', { className: 'message-detail-popover', text });
+  document.body.append(popover);
+  const rect = anchor.getBoundingClientRect();
+  const popoverRect = popover.getBoundingClientRect();
+  const left = Math.min(
+    window.innerWidth - popoverRect.width - 8,
+    Math.max(8, rect.left + rect.width / 2 - popoverRect.width / 2),
+  );
+  const top = Math.max(8, rect.top - popoverRect.height - 8);
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+
+  const close = (event) => {
+    if (event?.target === anchor || popover.contains(event?.target)) return;
+    popover.remove();
+    document.removeEventListener('pointerdown', close, true);
+    document.removeEventListener('keydown', close, true);
+  };
+  window.setTimeout(() => {
+    document.addEventListener('pointerdown', close, true);
+    document.addEventListener('keydown', close, true);
+  }, 0);
+  window.setTimeout(() => {
+    popover.remove();
+    document.removeEventListener('pointerdown', close, true);
+    document.removeEventListener('keydown', close, true);
+  }, 4500);
 }
 
 function answerLabel(userId) {
@@ -350,3 +381,4 @@ async function answerQuestion(questionId, optionId) {
     showToast(friendlyError(error, 'Kunde inte spara svaret.'), 'error');
   }
 }
+

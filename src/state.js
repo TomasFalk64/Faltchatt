@@ -35,7 +35,6 @@ export const appState = {
   activeGroup: null,
   memberships: [],
   members: [],
-  invites: [],
   presence: [],
   messages: [],
   questions: new Map(),
@@ -79,3 +78,4 @@ export function isActivePresence(presence) {
 export function presenceForUser(userId) {
   return appState.presence.find((presence) => presence.user_id === userId && isActivePresence(presence)) || null;
 }
+

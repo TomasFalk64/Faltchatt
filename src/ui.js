@@ -198,6 +198,7 @@ export function renderAppShell() {
               navButton('map', 'Karta', 'map'),
               navButton('message-square', 'Chatt', 'chat'),
               navButton('shield', 'Admin', 'admin'),
+              navButton('info', 'Integritet', 'privacy'),
             ]),
             el('div', { className: 'sidebar-content' }, [
               el('section', { id: 'profile-view', className: 'side-view', 'data-view': 'profile' }),
@@ -205,6 +206,7 @@ export function renderAppShell() {
               el('section', { id: 'map-controls-view', className: 'side-view', 'data-view': 'map', hidden: true }),
               el('section', { id: 'chat-view', className: 'side-view', 'data-view': 'chat', hidden: true }),
               el('section', { id: 'admin-view', className: 'side-view', 'data-view': 'admin', hidden: true }),
+              el('section', { id: 'privacy-view', className: 'side-view', 'data-view': 'privacy', hidden: true }),
             ]),
             el('section', { className: 'log-panel' }, [
               el('div', { className: 'log-header' }, [
@@ -275,8 +277,7 @@ function topbarUserMenu() {
 function topbarUserLabel() {
   const alias = appState.profile?.alias?.trim();
   if (alias) return alias;
-  const emailPrefix = appState.user?.email?.split('@')[0]?.trim();
-  return emailPrefix || 'Profil';
+  return 'Profil';
 }
 
 function renderTopbarGroupSelector() {
