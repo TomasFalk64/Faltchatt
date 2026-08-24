@@ -1,9 +1,10 @@
 import { requireSupabase } from './supabase.js';
 import { appState, presenceForUser, setActiveGroupId } from './state.js';
-import { el, formatRelative, friendlyError, icon, renderIcons, showToast, symbolNode } from './ui.js';
+import { el, formatRelative, friendlyError, icon, logEvent, renderIcons, showToast, symbolNode } from './ui.js';
 
 let groupChannel = null;
 let groupRefreshTimer = null;
+const presenceDebugState = new Map();
 
 export function isApprovedMember() {
   return Boolean(
@@ -72,24 +73,48 @@ export async function loadMembers() {
 }
 
 export async function loadPresence() {
-  appState.presence = [];
-  if (!appState.activeGroupId || !isApprovedMember()) return;
+  if (!appState.activeGroupId || !isApprovedMember()) {
+    appState.presence = [];
+    return;
+  }
   const { data, error } = await requireSupabase()
     .from('group_presence')
     .select('*')
     .eq('group_id', appState.activeGroupId);
   if (error) throw error;
   appState.presence = data || [];
+  auditPresenceStatuses('fallback');
 }
 
-export function subscribeGroups(onChanged) {
+export function applyPresencePayload(payload) {
+  const row = payload.new || payload.old;
+  if (!row || row.group_id !== appState.activeGroupId) return false;
+  if (payload.eventType === 'DELETE') {
+    appState.presence = appState.presence.filter((presence) => !(presence.group_id === row.group_id && presence.user_id === row.user_id));
+    auditPresenceStatuses('Realtime');
+    return true;
+  }
+  const index = appState.presence.findIndex((presence) => presence.group_id === row.group_id && presence.user_id === row.user_id);
+  if (index >= 0) appState.presence[index] = { ...appState.presence[index], ...row };
+  else appState.presence.push(row);
+  auditPresenceStatuses('Realtime');
+  return true;
+}
+
+export function subscribeGroups(onChanged, onPresenceChanged) {
   unsubscribeGroups();
   if (!appState.user) return;
-  groupChannel = requireSupabase()
+  let channel = requireSupabase()
     .channel('group-memberships')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, onChanged)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'group_presence' }, onChanged)
-    .subscribe();
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, onChanged);
+  if (appState.activeGroupId && isApprovedMember()) {
+    channel = channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'group_presence', filter: `group_id=eq.${appState.activeGroupId}` },
+      onPresenceChanged,
+    );
+  }
+  groupChannel = channel.subscribe();
   groupRefreshTimer = window.setInterval(onChanged, 30000);
 }
 
@@ -359,6 +384,35 @@ function compareMembers(a, b) {
 
 function memberPresence(userId) {
   return presenceForUser(userId);
+}
+
+function auditPresenceStatuses(source) {
+  if (!appState.activeGroupId || !appState.members.length) return;
+  appState.members
+    .filter((member) => member.status === 'approved')
+    .forEach((member) => {
+      const row = appState.presence.find((presence) => presence.user_id === member.user_id);
+      const active = Boolean(presenceForUser(member.user_id));
+      const sharing = Boolean(row?.is_sharing_location);
+      const key = `${appState.activeGroupId}:${member.user_id}`;
+      const previous = presenceDebugState.get(key);
+      const label = member.profiles?.alias || `Användare ${member.user_id.slice(0, 8)}`;
+      const reason = presenceStatusReason(row, active);
+      if (!previous) {
+        logEvent(`Presence ${source}: ${label} är ${active ? 'aktiv' : 'inaktiv'} (${reason}, dela position ${sharing ? 'ja' : 'nej'}).`, 'info');
+      } else if (previous.active !== active) {
+        logEvent(`Presence ${source}: ${label} ändrades till ${active ? 'aktiv' : 'inaktiv'} (${reason}).`, 'info');
+      } else if (previous.sharing !== sharing) {
+        logEvent(`Presence ${source}: ${label} ändrade dela position till ${sharing ? 'ja' : 'nej'}.`, 'info');
+      }
+      presenceDebugState.set(key, { active, sharing });
+    });
+}
+
+function presenceStatusReason(row, active) {
+  if (!row?.last_seen) return 'presence-rad saknas';
+  const ageSeconds = Math.max(0, Math.round((Date.now() - new Date(row.last_seen).getTime()) / 1000));
+  return active ? `last_seen ${ageSeconds} s sedan` : `last_seen ${ageSeconds} s sedan, för gammal`;
 }
 
 function memberRowMeta(member, activeText) {

@@ -20,6 +20,8 @@ let watchId;
 let lastSent = { at: 0, lat: null, lng: null };
 let lastOwnPosition = null;
 let lastPositionLogAt = 0;
+let lastGpsSkipLogAt = 0;
+let lastPresenceHeartbeatLogAt = 0;
 let geotiffOpacity = 0.8;
 const hiddenSentLocationIds = new Set();
 let groupGeoTiffs = [];
@@ -44,14 +46,29 @@ export async function loadLocations() {
   appState.locations = data || [];
 }
 
-export function subscribeLocations(onChanged) {
+export function subscribeLocations(onLocationChanged, onChanged) {
   unsubscribeLocations();
   if (!appState.activeGroupId || !isApprovedMember()) return;
   locationChannel = requireSupabase()
     .channel(`locations:${appState.activeGroupId}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'locations', filter: `group_id=eq.${appState.activeGroupId}` }, onChanged)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'locations', filter: `group_id=eq.${appState.activeGroupId}` }, onLocationChanged)
     .subscribe();
   locationRefreshTimer = window.setInterval(onChanged, 20000);
+}
+
+export function applyLocationPayload(payload) {
+  const row = payload.new || payload.old;
+  if (!row || row.group_id !== appState.activeGroupId) return false;
+  if (payload.eventType === 'DELETE') {
+    appState.locations = appState.locations.filter((location) => !(location.group_id === row.group_id && location.user_id === row.user_id));
+    logEvent(`Location Realtime: ${memberName(row.user_id)} togs bort från lokalt positions-state.`, 'info');
+    return true;
+  }
+  const index = appState.locations.findIndex((location) => location.group_id === row.group_id && location.user_id === row.user_id);
+  if (index >= 0) appState.locations[index] = { ...appState.locations[index], ...row };
+  else appState.locations.push(row);
+  logEvent(`Location Realtime: ${memberName(row.user_id)} uppdaterad, position ${formatRelative(row.updated_at)}.`, 'info');
+  return true;
 }
 
 export function unsubscribeLocations() {
@@ -713,16 +730,22 @@ export function stopPresenceHeartbeat() {
 export async function touchPresence() {
   if (!appState.activeGroupId || !appState.user || !isApprovedMember()) return;
   try {
+    const lastSeen = new Date().toISOString();
     const { error } = await requireSupabase().from('group_presence').upsert(
       {
         group_id: appState.activeGroupId,
         user_id: appState.user.id,
-        last_seen: new Date().toISOString(),
+        last_seen: lastSeen,
         is_sharing_location: appState.locationSharingEnabled,
       },
       { onConflict: 'group_id,user_id' },
     );
     if (error) throw error;
+    updateOwnPresenceState(lastSeen);
+    if (Date.now() - lastPresenceHeartbeatLogAt > 30000) {
+      lastPresenceHeartbeatLogAt = Date.now();
+      logEvent(`Presence heartbeat skickad: ${memberName(appState.user.id)}, dela position ${appState.locationSharingEnabled ? 'ja' : 'nej'}.`, 'info');
+    }
   } catch (error) {
     console.warn('Kunde inte uppdatera gruppnärvaro.', error);
   }
@@ -785,11 +808,24 @@ async function handlePosition(position) {
   ownMarker.setIcon(ownPositionIcon());
   bindMemberPopup(ownMarker, appState.user.id, () => lastOwnPosition);
 
-  const moved = lastSent.lat === null || distanceMeters(lastSent.lat, lastSent.lng, latitude, longitude) > 15;
-  const enoughTime = Date.now() - lastSent.at > 10000;
-  if (!moved && !enoughTime) return;
+  if (!appState.activeGroupId || !isApprovedMember()) {
+    logGpsSkip('inte i vald godkänd grupp');
+    return;
+  }
+  const elapsed = Date.now() - lastSent.at;
+  const movedMeters = lastSent.lat === null ? null : distanceMeters(lastSent.lat, lastSent.lng, latitude, longitude);
+  const moved = movedMeters === null || movedMeters > 8;
+  const shouldSend = lastSent.lat === null || (elapsed >= 20000 && moved) || elapsed >= 60000;
+  if (!shouldSend) {
+    logGpsSkip(`för liten ändring (${Math.round(movedMeters || 0)} m, ${Math.round(elapsed / 1000)} s sedan senast)`);
+    return;
+  }
+  const sendReason = lastSent.lat === null
+    ? 'första positionen'
+    : elapsed >= 60000
+      ? `max 60 s passerat (${Math.round(movedMeters || 0)} m flytt)`
+      : `flyttat ${Math.round(movedMeters || 0)} m efter ${Math.round(elapsed / 1000)} s`;
   lastSent = { at: Date.now(), lat: latitude, lng: longitude };
-  if (!appState.activeGroupId || !isApprovedMember()) return;
   try {
     const updatedAt = new Date().toISOString();
     const { error } = await requireSupabase().from('locations').upsert(
@@ -808,6 +844,7 @@ async function handlePosition(position) {
     if (error) throw error;
     updateOwnLocationState({ latitude, longitude, accuracy, heading, speed, updatedAt });
     updateOwnPresenceState();
+    logEvent(`GPS position skickad: ${sendReason}, noggrannhet ±${Math.round(accuracy || 0)} m.`, 'info');
     await refreshMapLayers();
   } catch (error) {
     console.error(error);
@@ -815,12 +852,12 @@ async function handlePosition(position) {
   }
 }
 
-function updateOwnPresenceState() {
+function updateOwnPresenceState(lastSeen = new Date().toISOString()) {
   if (!appState.activeGroupId || !appState.user) return;
   const row = {
     group_id: appState.activeGroupId,
     user_id: appState.user.id,
-    last_seen: new Date().toISOString(),
+    last_seen: lastSeen,
     is_sharing_location: appState.locationSharingEnabled,
   };
   const index = appState.presence.findIndex((presence) => presence.group_id === row.group_id && presence.user_id === row.user_id);
@@ -843,6 +880,12 @@ function updateOwnLocationState({ latitude, longitude, accuracy, heading, speed,
   const index = appState.locations.findIndex((location) => location.group_id === row.group_id && location.user_id === row.user_id);
   if (index >= 0) appState.locations[index] = { ...appState.locations[index], ...row };
   else appState.locations.push(row);
+}
+
+function logGpsSkip(reason) {
+  if (Date.now() - lastGpsSkipLogAt < 30000) return;
+  lastGpsSkipLogAt = Date.now();
+  logEvent(`GPS position skickades inte: ${reason}.`, 'info');
 }
 
 function handlePositionError(error) {

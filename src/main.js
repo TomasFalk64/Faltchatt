@@ -1,9 +1,9 @@
 import './styles.css';
 import { isSupabaseConfigured } from './supabase.js';
 import { initAuth, renderAuth, renderProfile, setAuthChangeHandler, signOutUser } from './auth.js';
-import { loadGroups, loadPresence, refreshGroupDynamics, refreshMemberList, renderAdmin, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
-import { loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
-import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, startPresenceHeartbeat, startSharing, stopPresenceHeartbeat, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
+import { applyPresencePayload, loadGroups, loadPresence, refreshGroupDynamics, refreshMemberList, renderAdmin, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
+import { applyMessagePayload, loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
+import { applyLocationPayload, loadLocations, refreshMapLayers, renderMapControls, renderMapView, startPresenceHeartbeat, startSharing, stopPresenceHeartbeat, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
 import { renderPrivacy } from './privacy.js';
 import { appState, setActiveGroupId } from './state.js';
 import { renderAppShell, renderIcons, setSessionPill, setTopbarGroupChangeHandler, setTopbarUserActionHandler, setView, showToast, updateNavBadges } from './ui.js';
@@ -55,18 +55,23 @@ async function reloadAll() {
       await loadGroups();
     }
     await Promise.all([loadChatData(), loadLocations()]);
-    subscribeChat(async () => {
-      const beforeLocations = locationMessageSignature();
-      await refreshChatMessages();
-      if (locationMessageSignature() !== beforeLocations) await refreshMapLayers();
-    });
-    subscribeLocations(async () => {
+    subscribeChat(handleMessagePayload, refreshChatFallback);
+    subscribeLocations(async (payload) => {
+      if (!applyLocationPayload(payload)) return;
+      await refreshMapLayers();
+    }, async () => {
       await Promise.all([loadLocations(), loadPresence()]);
       await refreshMapLayers();
       refreshMemberList(handleUserChange);
       updateNavBadges();
     });
-    subscribeGroups(refreshGroupsIfChanged);
+    subscribeGroups(refreshGroupsIfChanged, async (payload) => {
+      if (!applyPresencePayload(payload)) return;
+      await refreshMapLayers();
+      refreshMemberList(handleUserChange);
+      updateNavBadges();
+      renderIcons();
+    });
     renderAll();
     syncPresenceAndSharing();
   } catch (error) {
@@ -74,6 +79,21 @@ async function reloadAll() {
     showToast('Något gick fel vid laddning. Kontrollera nätverk och Supabase-inställningar.', 'error');
     renderAll();
   }
+}
+
+async function handleMessagePayload(payload) {
+  const changedLocationMessages = applyMessagePayload(payload);
+  if (changedLocationMessages === null) {
+    await refreshChatFallback();
+    return;
+  }
+  if (changedLocationMessages) await refreshMapLayers();
+}
+
+async function refreshChatFallback() {
+  const beforeLocations = locationMessageSignature();
+  await refreshChatMessages();
+  if (locationMessageSignature() !== beforeLocations) await refreshMapLayers();
 }
 
 async function refreshGroupsIfChanged() {

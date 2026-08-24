@@ -45,13 +45,13 @@ export async function loadChatData() {
   appState.answers = answers || [];
 }
 
-export function subscribeChat(onChanged) {
+export function subscribeChat(onMessageChanged, onChanged) {
   unsubscribeChat();
   if (!appState.activeGroupId || !isApprovedMember()) return;
   const client = requireSupabase();
   chatChannel = client
     .channel(`messages:${appState.activeGroupId}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `group_id=eq.${appState.activeGroupId}` }, onChanged)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `group_id=eq.${appState.activeGroupId}` }, onMessageChanged)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `group_id=eq.${appState.activeGroupId}` }, onChanged)
     .subscribe();
   answerChannel = client
@@ -97,6 +97,28 @@ export async function refreshChatMessages() {
   await loadChatData();
   notifyForNewMessages(previousIds);
   renderMessageList();
+}
+
+export function applyMessagePayload(payload) {
+  const beforeLocations = locationMessageSignature();
+  const previousIds = new Set(appState.messages.map((message) => message.id));
+  const row = payload.new || payload.old;
+  if (!row || row.group_id !== appState.activeGroupId) return false;
+
+  if (payload.eventType === 'DELETE') {
+    appState.messages = appState.messages.filter((message) => message.id !== row.id);
+  } else if (row.type === 'question') {
+    return null;
+  } else {
+    const index = appState.messages.findIndex((message) => message.id === row.id);
+    if (index >= 0) appState.messages[index] = { ...appState.messages[index], ...row };
+    else appState.messages.push(row);
+    appState.messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }
+
+  notifyForNewMessages(previousIds);
+  renderMessageList();
+  return locationMessageSignature() !== beforeLocations;
 }
 
 function notifyForNewMessages(previousIds) {
@@ -172,6 +194,13 @@ function chatSignature() {
     appState.messages.map((message) => `${message.id}:${message.created_at}:${message.text}`).join('|'),
     appState.answers.map((answer) => `${answer.question_id}:${answer.user_id}:${answer.option_id}`).join('|'),
   ].join('::');
+}
+
+function locationMessageSignature() {
+  return appState.messages
+    .filter((message) => message.type === 'location' && message.latitude && message.longitude)
+    .map((message) => `${message.id}:${message.latitude}:${message.longitude}:${message.text}`)
+    .join('|');
 }
 
 function renderMessage(message) {
@@ -316,12 +345,12 @@ function composer() {
     try {
       if (mode === 'question') {
         await createQuestion(text.value.trim(), options.value.split(',').map((item) => item.trim()).filter(Boolean));
+        await refreshChatMessages();
       } else {
         await sendMessage(text.value.trim());
       }
       text.value = '';
       options.value = '';
-      await refreshChatMessages();
     } catch (error) {
       console.error(error);
       showToast(friendlyError(error, 'Kunde inte skicka.'), 'error');
