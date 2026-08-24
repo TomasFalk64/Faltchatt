@@ -3,6 +3,7 @@ import { appState, getSymbol } from './state.js';
 
 const toastTimers = new Set();
 const logEntries = [];
+let topbarGroupChangeHandler = async () => {};
 
 export function el(tag, options = {}, children = []) {
   const node = document.createElement(tag);
@@ -154,6 +155,10 @@ export function setView(view) {
   window.dispatchEvent(new CustomEvent('faltchatt:map-visible'));
 }
 
+export function setTopbarGroupChangeHandler(handler) {
+  topbarGroupChangeHandler = handler || (async () => {});
+}
+
 export function updateNavBadges() {
   const hasPendingMembers = appState.members.some((member) => member.status === 'pending');
   const activeMembership = appState.memberships.find((member) => member.group_id === appState.activeGroupId);
@@ -229,8 +234,41 @@ export function setSessionPill() {
   const pill = document.querySelector('#session-pill');
   if (!pill) return;
   pill.textContent = appState.user ? appState.profile?.alias || appState.user.email : 'Inte inloggad';
-  const mapTitle = document.querySelector('#topbar-map-title');
-  if (!mapTitle) return;
-  mapTitle.textContent = appState.activeGroup?.name || 'Ingen grupp';
-  mapTitle.title = mapTitle.textContent;
+  renderTopbarGroupSelector();
+}
+
+function renderTopbarGroupSelector() {
+  const container = document.querySelector('#topbar-map-title');
+  if (!container) return;
+  container.replaceChildren();
+  if (!appState.user) return;
+  if (!appState.memberships.length) {
+    container.append(el('span', {
+      className: 'topbar-group-info',
+      text: 'Skapa eller gå med i grupp via grupp-fliken',
+      title: 'Skapa eller gå med i grupp via grupp-fliken',
+    }));
+    return;
+  }
+  const select = el('select', {
+    className: 'topbar-group-select',
+    title: 'Välj grupp',
+    'aria-label': 'Välj grupp',
+    onChange: async (event) => {
+      window.dispatchEvent(new CustomEvent('faltchatt:group-changing'));
+      await topbarGroupChangeHandler(event.target.value || null);
+    },
+  }, [
+    el('option', { value: '', text: 'Ingen grupp vald' }),
+    ...appState.memberships.map((membership) =>
+      el('option', { value: membership.group_id, text: topbarGroupOptionText(membership) }),
+    ),
+  ]);
+  select.value = appState.activeGroupId || '';
+  container.append(select);
+}
+
+function topbarGroupOptionText(membership) {
+  const name = membership.groups?.name || `Grupp ${membership.group_id.slice(0, 8)}`;
+  return membership.status === 'approved' ? name : `${name} (${membership.status})`;
 }

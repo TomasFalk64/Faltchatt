@@ -98,12 +98,38 @@ code {
 
 .topbar-map-title {
   grid-area: title;
+  display: grid;
+  place-items: center;
   max-width: 38vw;
+  min-width: 0;
   overflow: hidden;
   color: #17324d;
   font-size: 0.9rem;
   font-weight: 850;
   text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-group-select {
+  width: min(22rem, 38vw);
+  min-height: 30px;
+  border-color: #b7c5d3;
+  padding: 0.25rem 1.7rem 0.25rem 0.55rem;
+  background-color: #f8fafc;
+  color: #17324d;
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.topbar-group-info {
+  display: block;
+  max-width: min(28rem, 42vw);
+  overflow: hidden;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1696,6 +1722,18 @@ code {
   .topbar-map-title {
     max-width: 42vw;
     font-size: 0.84rem;
+  }
+
+  .topbar-group-select {
+    width: 42vw;
+    min-height: 28px;
+    padding-block: 0.18rem;
+    font-size: 0.78rem;
+  }
+
+  .topbar-group-info {
+    max-width: 42vw;
+    font-size: 0.7rem;
   }
 
   .session-pill {

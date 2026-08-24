@@ -5,7 +5,7 @@ import { loadGroups, loadPresence, refreshGroupDynamics, refreshMemberList, rend
 import { loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
 import { loadLocations, refreshMapLayers, renderMapControls, renderMapView, startPresenceHeartbeat, startSharing, stopPresenceHeartbeat, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
 import { appState, setActiveGroupId } from './state.js';
-import { renderAppShell, renderIcons, setSessionPill, setView, showToast, updateNavBadges } from './ui.js';
+import { renderAppShell, renderIcons, setSessionPill, setTopbarGroupChangeHandler, setView, showToast, updateNavBadges } from './ui.js';
 
 async function bootstrap() {
   renderAppShell();
@@ -15,6 +15,10 @@ async function bootstrap() {
     document.querySelector('.app-frame').hidden = true;
     return;
   }
+  setTopbarGroupChangeHandler(async (groupId) => {
+    setActiveGroupId(groupId);
+    await handleUserChange();
+  });
   setAuthChangeHandler(reloadAll);
   await initAuth();
   await reloadAll();
