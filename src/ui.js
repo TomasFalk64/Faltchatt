@@ -139,6 +139,7 @@ export function memberColor(userId) {
 
 
 export function setView(view) {
+  if (!['profile', 'group', 'chat', 'admin'].includes(view)) view = 'profile';
   appState.selectedView = view;
   document.querySelectorAll('.side-view').forEach((node) => {
     node.hidden = node.dataset.view !== view;
@@ -164,7 +165,7 @@ export function updateNavBadges() {
   const activeMembership = appState.memberships.find((member) => member.group_id === appState.activeGroupId);
   const ownMembershipPending = activeMembership?.status === 'pending';
   setNavBadge('group', hasPendingMembers);
-  setNavBadge('map', ownMembershipPending);
+  setNavBadge('admin', ownMembershipPending);
   setNavBadge('chat', appState.unreadChat);
 }
 
@@ -190,32 +191,14 @@ export function renderAppShell() {
             el('nav', { className: 'side-nav' }, [
               navButton('user', 'Profil', 'profile'),
               navButton('users', 'Grupp', 'group'),
-              navButton('map', 'Karta', 'map'),
               navButton('message-square', 'Chatt', 'chat'),
               navButton('shield', 'Admin', 'admin'),
-              navButton('info', 'Integritet', 'privacy'),
             ]),
             el('div', { className: 'sidebar-content' }, [
               el('section', { id: 'profile-view', className: 'side-view', 'data-view': 'profile' }),
               el('section', { id: 'group-view', className: 'side-view', 'data-view': 'group', hidden: true }),
-              el('section', { id: 'map-controls-view', className: 'side-view', 'data-view': 'map', hidden: true }),
               el('section', { id: 'chat-view', className: 'side-view', 'data-view': 'chat', hidden: true }),
               el('section', { id: 'admin-view', className: 'side-view', 'data-view': 'admin', hidden: true }),
-              el('section', { id: 'privacy-view', className: 'side-view', 'data-view': 'privacy', hidden: true }),
-            ]),
-            el('section', { className: 'log-panel' }, [
-              el('div', { className: 'log-header' }, [
-                el('strong', { text: 'Logg' }),
-                el('button', {
-                  className: 'small-button',
-                  type: 'button',
-                  onClick: async () => {
-                    const value = document.querySelector('#app-log-output')?.value || '';
-                    await navigator.clipboard?.writeText(value);
-                  },
-                }, [icon('copy', 'Kopiera'), 'Kopiera']),
-              ]),
-              el('textarea', { id: 'app-log-output', readonly: true, spellcheck: 'false' }),
             ]),
           ]),
           el('section', { id: 'map-view', className: 'map-view', 'data-view': 'map' }),
@@ -226,6 +209,23 @@ export function renderAppShell() {
   );
   renderLog();
   renderIcons();
+}
+
+export function logPanel() {
+  return el('section', { className: 'log-panel admin-log-panel' }, [
+    el('div', { className: 'log-header' }, [
+      el('strong', { text: 'Logg' }),
+      el('button', {
+        className: 'small-button',
+        type: 'button',
+        onClick: async () => {
+          const value = document.querySelector('#app-log-output')?.value || '';
+          await navigator.clipboard?.writeText(value);
+        },
+      }, [icon('copy', 'Kopiera'), 'Kopiera']),
+    ]),
+    el('textarea', { id: 'app-log-output', readonly: true, spellcheck: 'false' }),
+  ]);
 }
 
 function navButton(iconName, text, view) {

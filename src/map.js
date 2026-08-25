@@ -121,7 +121,7 @@ export async function renderMapView(onChanged) {
 }
 
 export function renderMapControls(onChanged) {
-  const view = document.querySelector('#map-controls-view');
+  const view = document.querySelector('#admin-map-controls-region');
   if (!view) return;
   view.innerHTML = '';
 
@@ -156,15 +156,10 @@ export function renderMapControls(onChanged) {
     el('p', { className: 'muted', text: hasApprovedGroup ? 'Laddar kartor...' : 'Ingen aktiv godkänd grupp.' }),
   ]);
   view.append(
-    el('div', { className: 'page sidebar-page' }, [
-      el('section', { className: 'panel stack' }, [
-        el('h2', { text: 'Karta' }),
-        el('p', { className: 'muted', text: hasApprovedGroup ? 'OpenStreetMap visas alltid. Gruppkartor visas om de laddas upp.' : 'OpenStreetMap visas även utan grupp. Gruppkarta och platsmeddelanden kräver godkänd grupp.' }),
-        opacityControl,
-        canAdminGroup() ? el('div', { className: 'upload-control' }, [upload, uploadButton]) : null,
-        mapList,
-      ]),
-    ]),
+    el('p', { className: 'muted', text: hasApprovedGroup ? 'OpenStreetMap visas alltid. Gruppkartor visas om de laddas upp.' : 'OpenStreetMap visas även utan grupp. Gruppkarta och platsmeddelanden kräver godkänd grupp.' }),
+    opacityControl,
+    canAdminGroup() ? el('div', { className: 'upload-control' }, [upload, uploadButton]) : null,
+    mapList,
   );
   renderIcons();
   if (hasApprovedGroup) renderGroupMapList(onChanged);

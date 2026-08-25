@@ -1,6 +1,7 @@
 import { requireSupabase } from './supabase.js';
 import { appState, presenceForUser, setActiveGroupId } from './state.js';
-import { el, formatRelative, friendlyError, icon, logEvent, renderIcons, showToast, symbolNode } from './ui.js';
+import { privacyContent } from './privacy.js';
+import { el, formatRelative, friendlyError, icon, logEvent, logPanel, renderIcons, renderLog, showToast, symbolNode } from './ui.js';
 
 let groupChannel = null;
 let groupRefreshTimer = null;
@@ -132,12 +133,14 @@ export function renderGroups(onChanged = async () => {}) {
 
   view.append(
     el('div', { className: 'page sidebar-page' }, [
-      el('section', { className: 'panel stack' }, [
+      el('section', { className: 'stack group-page' }, [
+        el('div', { className: 'tab-kicker', text: 'GRUPP' }),
         el('div', { id: 'group-select-region' }, [groupSelectControl(onChanged)]),
+        el('h3', { className: 'compact-subheading', text: 'Medlemmar' }),
         el('div', { id: 'group-member-list-region' }, [memberList(onChanged)]),
         el('div', { id: 'group-summary-region' }, [activeGroupSummary()]),
-        createGroupForm(onChanged),
         joinGroupForm(onChanged),
+        createGroupForm(onChanged),
       ]),
     ]),
   );
@@ -189,7 +192,7 @@ function groupSelectControl(onChanged) {
     ],
   );
   groupSelect.value = appState.activeGroupId || '';
-  return el('label', { className: 'group-section-label' }, ['Aktuell grupp', groupSelect]);
+  return el('label', { className: 'group-section-label inline-field' }, [el('span', { text: 'Aktuell grupp:' }), groupSelect]);
 }
 
 export function renderAdmin(onChanged = async () => {}) {
@@ -198,32 +201,45 @@ export function renderAdmin(onChanged = async () => {}) {
   view.innerHTML = '';
   if (!appState.user) return;
 
-  let content;
-  if (!appState.activeGroup) {
-    content = el('p', { className: 'muted', text: 'Välj en grupp i gruppfliken för att se administration.' });
-  } else if (!canAdminGroup()) {
-    content = el('p', { className: 'muted', text: 'Administrationsverktyg visas för owner och admin i den valda gruppen.' });
-  } else {
-    content = [
-      invitationControl(),
-      isGroupOwner() ? adminRoleControl(onChanged) : null,
-      isGroupOwner() ? clearLocationPinsControl(onChanged) : null,
-      isGroupOwner() ? clearChatControl(onChanged) : null,
-      isGroupOwner() ? deleteGroupControl(onChanged) : null,
-    ];
-  }
-
+  const admin = canAdminGroup();
+  const owner = isGroupOwner();
+  const sections = [
+    adminSection('Integritet', privacyContent()),
+    admin ? adminSection('Inbjudan', invitationControl()) : null,
+    owner ? adminSection('Ändra admin', adminRoleControl(onChanged)) : null,
+    admin ? adminSection('Ladda karta', mapAdminRegion()) : null,
+    owner ? adminSection('Rensa platsnålar', clearLocationPinsControl(onChanged), { danger: true }) : null,
+    owner ? adminSection('Rensa chatt', clearChatControl(onChanged), { danger: true }) : null,
+    owner ? adminSection('Ta bort grupp', deleteGroupControl(onChanged), { danger: true }) : null,
+    adminSection('Logg', logPanel(), { className: 'admin-log-section' }),
+  ].filter(Boolean);
   view.append(
     el('div', { className: 'page sidebar-page' }, [
-      el('section', { className: 'panel stack' }, [
-        el('h2', { text: 'Administration' }),
-        ...(Array.isArray(content) ? content : [content]),
+      el('section', { className: 'stack admin-panel' }, [
+        el('div', { className: 'tab-kicker', text: 'ADMINISTRATION' }),
+        ...sections,
       ]),
     ]),
   );
+  renderLog();
   renderIcons();
 }
 
+function adminSection(title, content, options = {}) {
+  return el('details', {
+    className: `admin-section ${options.danger ? 'admin-section-danger' : ''} ${options.className || ''}`,
+    open: options.open,
+  }, [
+    el('summary', { text: title }),
+    el('div', { className: 'admin-section-body' }, [content]),
+  ]);
+}
+
+function mapAdminRegion() {
+  return el('div', { id: 'admin-map-controls-region', className: 'stack' }, [
+    el('p', { className: 'muted', text: 'Laddar kartverktyg...' }),
+  ]);
+}
 function activeGroupSummary() {
   if (!appState.activeGroup) return el('p', { className: 'muted', text: 'Skapa eller gå med i en grupp för att använda karta och chatt.' });
   const membership = appState.memberships.find((item) => item.group_id === appState.activeGroupId);

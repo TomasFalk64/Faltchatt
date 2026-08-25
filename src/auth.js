@@ -292,11 +292,11 @@ export function renderProfile() {
   );
 
   view.append(
-    el('div', { className: 'page narrow' }, [
-      el('h2', { text: 'Profil' }),
+    el('div', { className: 'page narrow profile-page' }, [
+      el('div', { className: 'tab-kicker', text: 'PROFIL' }),
       appState.passwordRecovery ? passwordRecoveryForm() : null,
-      el('form', { className: 'panel stack', onSubmit: save }, [
-        el('label', {}, ['Alias', alias]),
+      el('form', { className: 'stack profile-form', onSubmit: save }, [
+        el('label', { className: 'inline-field' }, [el('span', { text: 'Alias:' }), alias]),
         el('fieldset', { className: 'symbol-picker' }, [el('legend', { text: 'Symbol' }), ...symbolButtons]),
         el('fieldset', { className: 'color-picker' }, [el('legend', { text: 'Symbolfärg' }), ...colorButtons]),
         el('div', { className: 'symbol-preview' }, [previewGlyph, 'Visas på kartan']),

@@ -85,7 +85,11 @@ export function renderChat() {
   const list = el('div', { id: 'chat-message-list', className: 'message-list' }, appState.messages.map((message) => renderMessage(message)));
   list.dataset.signature = chatSignature();
   list.addEventListener('scroll', () => updateChatReadState(list));
-  view.append(el('div', { className: 'chat-layout sidebar-chat' }, [list, composer()]));
+  view.append(el('div', { className: 'chat-layout sidebar-chat' }, [
+    el('div', { className: 'tab-kicker chat-kicker', text: 'CHATT' }),
+    list,
+    composer(),
+  ]));
   queueMicrotask(() => {
     scrollMessageListToBottom(list);
     renderIcons();

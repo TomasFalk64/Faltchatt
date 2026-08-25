@@ -4,7 +4,6 @@ import { initAuth, renderAuth, renderProfile, setAuthChangeHandler, signOutUser 
 import { applyPresencePayload, loadGroups, loadPresence, refreshGroupDynamics, refreshMemberList, renderAdmin, renderGroups, subscribeGroups, unsubscribeGroups } from './groups.js';
 import { applyMessagePayload, loadChatData, refreshChatMessages, renderChat, subscribeChat, unsubscribeChat } from './chat.js';
 import { applyLocationPayload, loadLocations, refreshMapLayers, renderMapControls, renderMapView, startPresenceHeartbeat, startSharing, stopPresenceHeartbeat, stopSharing, subscribeLocations, unsubscribeLocations } from './map.js';
-import { renderPrivacy } from './privacy.js';
 import { appState, setActiveGroupId } from './state.js';
 import { renderAppShell, renderIcons, setSessionPill, setTopbarGroupChangeHandler, setTopbarUserActionHandler, setView, showToast, updateNavBadges } from './ui.js';
 
@@ -140,7 +139,6 @@ function renderAll() {
   renderProfile();
   renderGroups(handleUserChange);
   renderAdmin(handleUserChange);
-  renderPrivacy();
   renderMapView(reloadAll);
   renderMapControls(reloadAll);
   renderChat();

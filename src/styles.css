@@ -67,6 +67,18 @@ label {
   color: #334155;
 }
 
+.inline-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.inline-field > span {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 code {
   display: inline-block;
   border-radius: 6px;
@@ -284,7 +296,7 @@ code {
 
 .side-nav {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   border-bottom: 1px solid #d8e0e8;
   background: #fff;
 }
@@ -413,12 +425,36 @@ code {
 .page {
   width: 100%;
   margin: 0 auto;
-  padding: 0.7rem;
+  padding: 0.7rem 1rem;
 }
 
 .sidebar-page {
   display: grid;
   gap: 0.52rem;
+}
+
+.profile-form,
+.group-page {
+  gap: 0.65rem;
+}
+
+.compact-subheading {
+  margin: 0.15rem 0 -0.2rem;
+  font-size: 0.9rem;
+}
+
+.tab-kicker {
+  justify-self: end;
+  margin: -0.15rem 0 -0.2rem;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-page .tab-kicker {
+  margin-bottom: 0.35rem;
 }
 
 .narrow {
@@ -531,7 +567,7 @@ code {
   display: grid;
   place-items: center;
   gap: 0;
-  min-height: 42px;
+  min-height: 36px;
   background: #fff;
   color: #526170;
   font-size: 0.78rem;
@@ -931,6 +967,66 @@ code {
   margin: 0;
 }
 
+.admin-panel {
+  gap: 0.35rem;
+}
+
+.admin-section {
+  border-top: 1px solid #d8e0e8;
+}
+
+.admin-section:first-child {
+  border-top: 0;
+}
+
+.admin-section summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.5rem 0;
+  font-weight: 800;
+  color: #17212b;
+}
+
+.admin-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-section summary::before {
+  display: inline-block;
+  width: 1rem;
+  color: #607080;
+  content: "▸";
+}
+
+.admin-section[open] summary::before {
+  content: "▾";
+}
+
+.admin-section-danger summary {
+  color: #8a2f22;
+}
+
+.admin-section-body {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0 0 0.65rem 1rem;
+}
+
+.admin-log-section summary {
+  color: #17212b;
+}
+
+.admin-log-panel {
+  min-height: 9rem;
+  max-height: 13rem;
+  border: 1px solid #d8e0e8;
+  border-radius: 6px;
+}
+
+.admin-log-panel #app-log-output {
+  height: 8rem;
+}
+
 .invitation-control {
   display: grid;
   gap: 0.42rem;
@@ -1262,10 +1358,15 @@ code {
 
 .chat-layout {
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: auto 1fr auto;
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  background: #edf1f5;
+}
+
+.chat-kicker {
+  padding: 0.35rem 0.85rem 0;
   background: #edf1f5;
 }
 
@@ -1567,7 +1668,7 @@ code {
   }
 
   .page {
-    padding: 0.48rem;
+    padding: 0.5rem 0.85rem;
   }
 
   .panel {
@@ -1590,7 +1691,7 @@ code {
   }
 
   .nav-button {
-    min-height: 40px;
+    min-height: 34px;
   }
 
   .nav-button svg {
