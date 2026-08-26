@@ -637,6 +637,70 @@ code {
   gap: 0.25rem;
 }
 
+.group-status-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 6px;
+  padding: 0.32rem 0.55rem;
+  background: #f8fafc;
+  color: #526170;
+  font-family: "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.group-status-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.group-status-row strong {
+  color: #17324d;
+  font-weight: 850;
+}
+
+.group-status-row button {
+  justify-self: center;
+  min-height: 32px;
+  padding: 0.32rem 0.5rem;
+  font-size: 0.82rem;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.location-sharing-prompt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 6px;
+  padding: 0.45rem 0.55rem;
+  background: #eef6f8;
+  color: #17324d;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.location-sharing-prompt button {
+  justify-self: center;
+  min-height: 32px;
+  padding: 0.32rem 0.5rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.group-retention-info {
+  margin: 0;
+  border-top: 1px solid #e0e6ed;
+  padding-top: 0.52rem;
+  font-size: 0.86rem;
+}
+
 .group-section-label {
   font-size: 0.98rem;
 }
@@ -1586,6 +1650,47 @@ code {
 
 .toast-warning {
   background: #9a3412;
+}
+
+.app-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(23, 33, 43, 0.34);
+}
+
+.app-modal {
+  display: grid;
+  gap: 0.75rem;
+  width: min(100%, 360px);
+  border-radius: 8px;
+  padding: 1rem;
+  background: #fff;
+  box-shadow: 0 18px 44px rgba(20, 33, 45, 0.26);
+}
+
+.app-modal h2,
+.app-modal p {
+  margin: 0;
+}
+
+.app-modal h2 {
+  color: #17212b;
+  font-size: 1.05rem;
+}
+
+.app-modal p {
+  color: #526170;
+  line-height: 1.35;
+}
+
+.app-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
 }
 
 @media (min-width: 820px) {

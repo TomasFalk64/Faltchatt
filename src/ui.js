@@ -140,6 +140,11 @@ export function memberColor(userId) {
 
 export function setView(view) {
   if (!['profile', 'group', 'chat', 'admin'].includes(view)) view = 'profile';
+  const previousView = appState.selectedView;
+  if (previousView === 'group' && view !== 'group' && appState.groupNotice?.type === 'accepted') {
+    appState.groupNotice = null;
+    document.querySelectorAll('.group-status-accepted').forEach((node) => node.remove());
+  }
   appState.selectedView = view;
   document.querySelectorAll('.side-view').forEach((node) => {
     node.hidden = node.dataset.view !== view;
@@ -148,6 +153,7 @@ export function setView(view) {
     node.classList.toggle('active', node.dataset.view === view);
   });
   if (view === 'chat') appState.unreadChat = false;
+  if (view === 'group') appState.unreadGroup = false;
   updateNavBadges();
   window.dispatchEvent(new CustomEvent('faltchatt:map-visible'));
 }
@@ -164,7 +170,8 @@ export function updateNavBadges() {
   const hasPendingMembers = appState.members.some((member) => member.status === 'pending');
   const activeMembership = appState.memberships.find((member) => member.group_id === appState.activeGroupId);
   const ownMembershipPending = activeMembership?.status === 'pending';
-  setNavBadge('group', hasPendingMembers);
+  const hasOwnPendingMembership = appState.memberships.some((member) => member.status === 'pending');
+  setNavBadge('group', hasPendingMembers || hasOwnPendingMembership || appState.unreadGroup);
   setNavBadge('admin', ownMembershipPending);
   setNavBadge('chat', appState.unreadChat);
 }

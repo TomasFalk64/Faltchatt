@@ -42,6 +42,7 @@ export async function loadGroups() {
     .order('created_at', { ascending: false });
   if (error) throw error;
   appState.memberships = (memberships || []).filter((membership) => membership.groups && !isGroupExpired(membership.groups));
+  pruneGroupNotice();
 
   if (appState.activeGroupId) {
     const membership = appState.memberships.find((item) => item.group_id === appState.activeGroupId);
@@ -130,17 +131,26 @@ export function renderGroups(onChanged = async () => {}) {
   const view = document.querySelector('#group-view');
   view.innerHTML = '';
   if (!appState.user) return;
+  const hasActiveGroup = Boolean(appState.activeGroup);
+  const hasApprovedMembership = appState.memberships.some((membership) => membership.status === 'approved');
+  const statusLine = groupStatusLine();
+  const showGroupSelector = hasActiveGroup || hasApprovedMembership;
 
   view.append(
     el('div', { className: 'page sidebar-page' }, [
       el('section', { className: 'stack group-page' }, [
         el('div', { className: 'tab-kicker', text: 'GRUPP' }),
-        el('div', { id: 'group-select-region' }, [groupSelectControl(onChanged)]),
-        el('h3', { className: 'compact-subheading', text: 'Medlemmar' }),
-        el('div', { id: 'group-member-list-region' }, [memberList(onChanged)]),
-        el('div', { id: 'group-summary-region' }, [activeGroupSummary()]),
+        el('div', { id: 'group-status-region' }, [statusLine]),
+        showGroupSelector
+          ? el('div', { id: 'group-select-region' }, [groupSelectControl(onChanged)])
+          : el('div', { id: 'group-select-region' }),
+        hasActiveGroup ? el('h3', { className: 'compact-subheading', text: 'Medlemmar' }) : null,
+        hasActiveGroup ? el('div', { id: 'group-member-list-region' }, [memberList(onChanged)]) : null,
+        hasActiveGroup ? el('div', { id: 'group-summary-region' }, [activeGroupSummary()]) : null,
+        el('div', { id: 'group-location-prompt-region' }, [locationSharingPrompt()]),
         joinGroupForm(onChanged),
         createGroupForm(onChanged),
+        retentionInfo(),
       ]),
     ]),
   );
@@ -148,11 +158,23 @@ export function renderGroups(onChanged = async () => {}) {
 }
 
 export function refreshGroupDynamics(onChanged = async () => {}) {
+  const statusRegion = document.querySelector('#group-status-region');
+  if (statusRegion) {
+    const statusLine = groupStatusLine();
+    statusRegion.replaceChildren(...(statusLine ? [statusLine] : []));
+  }
   const selectRegion = document.querySelector('#group-select-region');
-  if (selectRegion) selectRegion.replaceChildren(groupSelectControl(onChanged));
+  const hasApprovedMembership = appState.memberships.some((membership) => membership.status === 'approved');
+  const showGroupSelector = appState.activeGroup || hasApprovedMembership;
+  if (selectRegion) selectRegion.replaceChildren(showGroupSelector ? groupSelectControl(onChanged) : '');
   refreshMemberList(onChanged);
   const summaryRegion = document.querySelector('#group-summary-region');
   if (summaryRegion) summaryRegion.replaceChildren(activeGroupSummary());
+  const locationPromptRegion = document.querySelector('#group-location-prompt-region');
+  if (locationPromptRegion) {
+    const prompt = locationSharingPrompt();
+    locationPromptRegion.replaceChildren(...(prompt ? [prompt] : []));
+  }
   renderIcons();
 }
 
@@ -193,6 +215,55 @@ function groupSelectControl(onChanged) {
   );
   groupSelect.value = appState.activeGroupId || '';
   return el('label', { className: 'group-section-label inline-field' }, [el('span', { text: 'Aktuell grupp:' }), groupSelect]);
+}
+
+function groupStatusLine() {
+  if (appState.groupNotice?.type === 'accepted') {
+    return el('div', { className: 'group-status-row group-status-accepted' }, [
+      el('span', {}, ['Du är nu med i ', el('strong', { text: appState.groupNotice.groupName })]),
+    ]);
+  }
+  const pendingMembership = pendingMemberships()[0];
+  if (pendingMembership) {
+    return el('div', { className: 'group-status-row group-status-pending' }, [
+      el('span', {}, ['Väntar på godkännande i ', el('strong', { text: groupName(pendingMembership) })]),
+    ]);
+  }
+  const hasApprovedMembership = appState.memberships.some((membership) => membership.status === 'approved');
+  if (!appState.activeGroup && !hasApprovedMembership) {
+    return el('div', { className: 'group-status-row group-status-welcome' }, [
+      el('span', { text: 'Välkommen!' }),
+    ]);
+  }
+  return null;
+}
+
+function locationSharingPrompt() {
+  if (appState.locationSharingEnabled) return null;
+  return el('div', { className: 'location-sharing-prompt' }, [
+    el('span', { text: 'Visa och dela min position är av.' }),
+    el('button', {
+      type: 'button',
+      className: 'secondary',
+      onClick: () => window.dispatchEvent(new CustomEvent('faltchatt:enable-location-sharing')),
+    }, [icon('map-pin', 'Aktivera position'), 'Visa och dela min position']),
+  ]);
+}
+
+function pendingMemberships() {
+  return appState.memberships.filter((membership) => membership.status === 'pending');
+}
+
+function groupName(membership) {
+  return membership.groups?.name || `Grupp ${membership.group_id.slice(0, 8)}`;
+}
+
+function pruneGroupNotice() {
+  if (!appState.groupNotice?.groupId) return;
+  const membership = appState.memberships.find((item) => item.group_id === appState.groupNotice.groupId);
+  if (membership?.status === 'approved') return;
+  appState.groupNotice = null;
+  appState.unreadGroup = false;
 }
 
 export function renderAdmin(onChanged = async () => {}) {
@@ -241,7 +312,7 @@ function mapAdminRegion() {
   ]);
 }
 function activeGroupSummary() {
-  if (!appState.activeGroup) return el('p', { className: 'muted', text: 'Skapa eller gå med i en grupp för att använda karta och chatt.' });
+  if (!appState.activeGroup) return el('span');
   const membership = appState.memberships.find((item) => item.group_id === appState.activeGroupId);
   const expired = isGroupExpired(appState.activeGroup);
   return el('div', { className: 'group-summary' }, [
@@ -252,7 +323,7 @@ function activeGroupSummary() {
         title: 'Ge gruppkoden till personer som ska begära medlemskap i gruppen.',
       }),
     ]),
-    appState.activeGroup.expires_at ? el('p', { className: 'muted', text: `Raderas automatiskt ${formatExpiry(appState.activeGroup.expires_at)}.` }) : null,
+    appState.activeGroup.expires_at ? el('p', { className: 'muted', text: `Gruppen raderas automatiskt ${formatExpiry(appState.activeGroup.expires_at)}.` }) : null,
     expired ? el('p', { className: 'warning-text', text: 'Gruppen har gått ut.' }) : null,
     !expired && membership?.status !== 'approved' ? el('p', { className: 'warning-text', text: 'Du väntar på godkännande innan karta och chatt öppnas.' }) : null,
   ]);
@@ -273,6 +344,7 @@ function createGroupForm(onChanged) {
     try {
       const { data: groupId, error } = await requireSupabase().rpc('create_group_with_owner', { group_name: groupName });
       if (error) throw error;
+      setActiveGroupId(groupId);
       input.value = '';
       await onChanged();
       const createdMembership = appState.memberships.find((membership) => membership.group_id === groupId);
@@ -291,12 +363,18 @@ function createGroupForm(onChanged) {
   };
   return el('form', { className: 'stack subsection create-group-section', onSubmit: submit }, [
     el('h3', { text: 'Skapa grupp' }),
-    el('p', { className: 'muted', text: 'Gruppen raderas automatiskt efter 7 dagar. Max 30 personer per grupp och max 30 pågående grupper totalt.' }),
     el('div', { className: 'compact-form-row' }, [
       input,
       el('button', { className: 'primary', type: 'submit' }, [icon('plus', 'Skapa'), 'Skapa']),
     ]),
   ]);
+}
+
+function retentionInfo() {
+  return el('p', {
+    className: 'muted group-retention-info',
+    text: 'Grupper raderas automatiskt efter 7 dagar. Max 30 personer per grupp.',
+  });
 }
 
 function joinGroupForm(onChanged) {
@@ -642,6 +720,7 @@ async function deleteGroup(groupName, onChanged) {
     setActiveGroupId(null);
     appState.activeGroup = null;
     appState.members = [];
+    if (appState.groupNotice?.groupId === groupId) appState.groupNotice = null;
     showToast(`Gruppen "${groupName}" togs bort.`, 'success');
     await onChanged();
   } catch (error) {
@@ -672,9 +751,12 @@ async function removeMember(member, label, onChanged) {
     const { error } = await request;
     if (error) throw error;
     if (isSelf) {
+      const groupId = appState.activeGroupId;
       setActiveGroupId(null);
       appState.activeGroup = null;
       appState.members = [];
+      if (appState.groupNotice?.groupId === groupId) appState.groupNotice = null;
+      appState.unreadGroup = false;
     }
     showToast(isSelf ? 'Du gick ur gruppen.' : 'Medlemmen togs bort.', 'success');
     await onChanged();
@@ -695,4 +777,3 @@ async function updateMember(memberId, patch, onChanged) {
     showToast(friendlyError(error, 'Kunde inte uppdatera medlem.'), 'error');
   }
 }
-
