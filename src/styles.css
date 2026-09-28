@@ -503,6 +503,23 @@ code {
   padding-top: 0.62rem;
 }
 
+.create-group-section[aria-disabled="true"] {
+  padding: 0.62rem;
+  border-color: #d1d5db;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.create-group-section[aria-disabled="true"] input,
+.create-group-section[aria-disabled="true"] button {
+  background: #e5e7eb;
+  color: #6b7280;
+  border-color: #d1d5db;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
 .subsection h3,
 .panel h2 {
   margin: 0;
@@ -1152,6 +1169,37 @@ code {
   border: 1px solid #67e8f9;
   background: #cffafe;
   color: #0e7490;
+}
+
+.profile-page button {
+  transition: filter 150ms ease, outline-color 150ms ease;
+}
+
+.profile-page button:enabled:focus-visible {
+  outline: 2px solid #155e75;
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .profile-page button:enabled:not(.color-swatch):hover {
+    filter: brightness(0.88);
+  }
+
+  .profile-page .symbol-choice:enabled:hover,
+  .profile-page .color-swatch:enabled:hover {
+    outline: 2px solid #607080;
+    outline-offset: 3px;
+  }
+
+  .profile-page button:enabled:focus-visible:hover {
+    outline-color: #155e75;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-page button {
+    transition: none;
+  }
 }
 
 .toggle-row {

@@ -179,7 +179,7 @@ export function renderAuth() {
 function authForm() {
   const email = el('input', { type: 'email', placeholder: 'E-post', autocomplete: 'email', required: true });
   const password = el('input', { type: 'password', placeholder: 'Lösenord', autocomplete: 'current-password', required: true, minlength: '6' });
-  let currentMode = 'signin';
+  let currentMode = 'guest';
   const submitButton = el('button', { className: 'primary', type: 'submit' }, [icon('log-in', 'Logga in'), 'Fortsätt']);
   const resetButton = el('button', { type: 'button', className: 'ghost auth-reset-button', onClick: resetPassword }, [icon('key-round', 'Återställ'), 'Återställ lösenord']);
   const signInTab = el('button', { type: 'button', className: 'auth-mode-button active', onClick: () => setMode('signin') }, ['Logga in']);

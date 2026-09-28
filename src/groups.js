@@ -282,7 +282,7 @@ export function renderAdmin(onChanged = async () => {}) {
     owner ? adminSection('Rensa platsnålar', clearLocationPinsControl(onChanged), { danger: true }) : null,
     owner ? adminSection('Rensa chatt', clearChatControl(onChanged), { danger: true }) : null,
     owner ? adminSection('Ta bort grupp', deleteGroupControl(onChanged), { danger: true }) : null,
-    adminSection('Logg', logPanel(), { className: 'admin-log-section' }),
+    owner ? adminSection('Logg', logPanel(), { className: 'admin-log-section' }) : null,
   ].filter(Boolean);
   view.append(
     el('div', { className: 'page sidebar-page' }, [
@@ -362,7 +362,7 @@ function createGroupForm(onChanged) {
       showToast(friendlyError(error, 'Kunde inte skapa grupp.'), 'error');
     }
   };
-  return el('form', { className: 'stack subsection create-group-section', onSubmit: submit }, [
+  return el('form', { className: 'stack subsection create-group-section', 'aria-disabled': String(isGuest()), onSubmit: submit }, [
     el('h3', { text: 'Skapa grupp' }),
     el('div', { className: 'compact-form-row' }, [
       input,
