@@ -88,6 +88,7 @@ code {
 }
 
 .app-shell {
+  grid-template-columns: minmax(0, 1fr);
   min-height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr;
@@ -284,7 +285,9 @@ code {
 }
 
 .sidebar {
+  min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   height: 100%;
@@ -302,12 +305,14 @@ code {
 }
 
 .sidebar-content {
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: #f8fafc;
 }
 
 .side-view {
+  min-width: 0;
   height: 100%;
   min-height: 0;
   overflow: auto;
@@ -1470,6 +1475,7 @@ code {
 
 .chat-layout {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr auto;
   height: 100%;
   min-height: 0;
@@ -1488,6 +1494,7 @@ code {
 }
 
 .message-list {
+  grid-template-columns: minmax(0, 1fr);
   overflow: auto;
   min-height: 0;
   padding: 0.65rem;
@@ -1500,7 +1507,8 @@ code {
   display: flex;
   align-items: flex-start;
   gap: 0.65rem;
-  max-width: 780px;
+  min-width: 0;
+  max-width: min(780px, 100%);
 }
 
 .own-message {
@@ -1541,6 +1549,7 @@ code {
 
 .message-line p,
 .message-line h3 {
+  min-width: 0;
   font-size: 0.95rem;
   font-weight: 500;
   line-height: 1.35;
@@ -1603,6 +1612,7 @@ code {
 
 .composer-inputs {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.4rem;
   min-width: 0;
 }
@@ -1776,7 +1786,7 @@ code {
   }
 
   .app-frame {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(240px, 45dvh) minmax(0, 1fr);
     width: 100%;
     height: calc(100dvh - 48px);
@@ -1963,6 +1973,19 @@ code {
   .map-position-check-button,
   .map-center-members-button {
     top: 0.35rem;
+  }
+
+  /* Keep native form controls inside their grid cells. A 16px text size also
+     avoids iOS focus zoom making the right-hand controls leave the viewport. */
+  input,
+  select,
+  textarea,
+  .composer-text,
+  .composer-options input,
+  .topbar-group-select {
+    min-width: 0;
+    max-width: 100%;
+    font-size: 16px;
   }
 }
 

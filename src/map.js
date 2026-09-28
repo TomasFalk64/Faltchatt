@@ -614,11 +614,14 @@ function memberIcon(userId, updatedAt, own = false) {
 }
 
 export function startSharing() {
-  if (watchId) return;
+  if (watchId != null) return;
   if (!navigator.geolocation) {
     showToast('GPS stöds inte av webbläsaren.', 'error');
     return;
   }
+  // A new watch also starts after a guest enables GPS or a different user
+  // signs in. Do not let the previous session's map pan suppress centering.
+  centerOnNextOwnGpsPosition();
   watchId = navigator.geolocation.watchPosition(handlePosition, handlePositionError, {
     enableHighAccuracy: true,
     maximumAge: 5000,
@@ -697,7 +700,7 @@ function checkPositionOnce() {
 export function stopSharing() {
   void clearOwnLocation();
   void touchPresence();
-  if (watchId) navigator.geolocation.clearWatch(watchId);
+  if (watchId != null) navigator.geolocation.clearWatch(watchId);
   watchId = null;
   lastOwnPosition = null;
   lastSent = { at: 0, lat: null, lng: null };
@@ -790,6 +793,8 @@ async function handlePosition(position) {
   if (appState.signingOut || !appState.user || !appState.locationSharingEnabled) return;
   const { latitude, longitude, accuracy, heading, speed } = position.coords;
   lastOwnPosition = { latitude, longitude, accuracy, updatedAt: Date.now() };
+  // initMap uses lastOwnPosition if GPS arrives before the map is mounted.
+  if (!map) return;
   if (Date.now() - lastPositionLogAt > 30000) {
     lastPositionLogAt = Date.now();
     logEvent(`GPS WGS84: lat ${latitude.toFixed(6)}, lon ${longitude.toFixed(6)}, noggrannhet ±${Math.round(accuracy || 0)} m.`, 'info');
