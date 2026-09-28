@@ -18,6 +18,7 @@ export function privacyContent() {
     el('h3', { text: 'Radering' }),
     el('p', { text: 'När en grupp raderas tas medlemskap, chatt, polls, positioner, platsnålar och uppladdade GeoTIFF-kartor bort. Cleanup körs server-side och behöver inte ske exakt när gruppen går ut.' }),
     el('h3', { text: 'Konto' }),
+    el('p', { text: 'Gäster får en tillfällig profil utan e-post eller lösenord. Max 100 gästanvändare kan finnas samtidigt. Robotkontroll sker med Cloudflare Turnstile. Gäster rensas varje timme efter minst 24 timmars inaktivitet. Utloggning tar bort position och närvaro, men gästprofilen ligger kvar till rensningen. Du kan också välja Radera min gästprofil i Profil för att direkt ta bort gästanvändaren, profilen, medlemskapen, positionen och närvaron. Chatt, polls och platsnålar behålls i gruppen utan koppling till den raderade gästprofilen.' }),
     el('p', { text: 'Du kan själv ta bort ditt konto via profilfliken. Då raderas ditt medlemskap och personuppgifter. Inaktiva konton raderas automatiskt efter 12 månader när serverrutinen är aktiverad.' }),
   ]);
 }

@@ -723,7 +723,7 @@ export function stopPresenceHeartbeat() {
 }
 
 export async function touchPresence() {
-  if (!appState.activeGroupId || !appState.user || !isApprovedMember()) return;
+  if (appState.signingOut || !appState.activeGroupId || !appState.user || !isApprovedMember()) return;
   try {
     const lastSeen = new Date().toISOString();
     const { error } = await requireSupabase().from('group_presence').upsert(
@@ -787,6 +787,7 @@ function shouldShowMemberOnMap(location) {
 }
 
 async function handlePosition(position) {
+  if (appState.signingOut || !appState.user || !appState.locationSharingEnabled) return;
   const { latitude, longitude, accuracy, heading, speed } = position.coords;
   lastOwnPosition = { latitude, longitude, accuracy, updatedAt: Date.now() };
   if (Date.now() - lastPositionLogAt > 30000) {

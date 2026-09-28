@@ -7,6 +7,7 @@ const corsHeaders = {
 
 type DeleteAccountPayload = {
   confirmEmail?: string;
+  confirmGuest?: boolean;
 };
 
 Deno.serve(async (req) => {
@@ -33,6 +34,15 @@ Deno.serve(async (req) => {
     if (userError || !userData.user) return json({ error: 'invalid user' }, 401);
 
     const payload = await req.json() as DeleteAccountPayload;
+    if (userData.user.is_anonymous) {
+      if (payload?.confirmGuest !== true) return json({ error: 'guest deletion confirmation required' }, 400);
+      const { error } = await supabase.rpc('delete_guest_account', {
+        target_user_id: userData.user.id,
+      });
+      if (error) throw error;
+      return json({ deleted: true });
+    }
+
     const accountEmail = (userData.user.email || '').trim().toLowerCase();
     const confirmEmail = (payload.confirmEmail || '').trim().toLowerCase();
     if (!accountEmail || confirmEmail !== accountEmail) {

@@ -117,6 +117,7 @@ export function formatRelative(value) {
 }
 
 export function memberName(userId) {
+  if (!userId) return 'Tidigare gäst';
   const member = appState.members.find((item) => item.user_id === userId);
   return member?.profiles?.alias || member?.profile?.alias || 'Okänd';
 }

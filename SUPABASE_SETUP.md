@@ -45,6 +45,10 @@ Om du använder SQL Editor i Dashboard, kör filerna i denna ordning:
 23. `supabase/migrations/023_fix_create_group_profile_privacy.sql`
 24. `supabase/migrations/024_random_initial_profile_symbol.sql`
 25. `supabase/migrations/025_temporary_groups_limits.sql`
+26. `supabase/migrations/026_expand_fun_join_code_words.sql`
+27. `supabase/migrations/027_guest_access.sql`
+28. `supabase/migrations/028_schedule_guest_cleanup.sql`
+29. `supabase/migrations/029_delete_guest_account.sql`
 
 ## 3. Authentication
 
@@ -53,6 +57,59 @@ I Dashboard, gå till Authentication:
 - Aktivera Email provider.
 - Välj om e-postbekräftelse ska krävas.
 - Lägg in redirect URLs för både lokal test och publicerad app, exempelvis `http://127.0.0.1:5173/Faltchatt/` och `https://tomasfalk64.github.io/Faltchatt/`.
+
+### Gästläge och robotskydd
+
+Gör inställningarna nedan innan gästinloggning aktiveras i produktion:
+
+1. Kör migrationerna 027–029 som `postgres` (SQL Editor eller CLI). Om 027 och 028 redan är körda, kör bara 029. 028 aktiverar `pg_cron` och schemalägger rensning varje hel timme. 027 stoppar om befintliga gäster redan överskrider 100 eller har admin-/ägarroller; granska dessa manuellt först. 029 möjliggör omedelbar gästradering. Deploya därefter den uppdaterade `delete-my-account`-funktionen och frontend.
+2. Skapa en **Managed** Cloudflare Turnstile-widget med appens värdnamn tillåtna. Lägg den offentliga webbplatsnyckeln i `VITE_TURNSTILE_SITE_KEY` i `.env.local` och i GitHub Actions repository variables. Bygg om appen efter ändringen.
+3. Under Supabase Authentication → Bot and Abuse Protection, aktivera CAPTCHA och välj Turnstile. Lägg **hemliga** Turnstile-nyckeln endast där, aldrig i Vite eller GitHub Pages. CAPTCHA verifieras av Supabase Auth, inte bara av gränssnittet. Inställningen omfattar även vanlig registrering, lösenordsinloggning och återställning; appen skickar därför CAPTCHA-token i samtliga dessa flöden.
+4. Behåll gränsen **30 anonyma inloggningar per timme och IP** i Supabase Auth rate limits. Detta är en Dashboard-inställning, inte något SQL-migrationen kan konfigurera.
+5. Aktivera **Allow anonymous sign-ins** sist. Stäng av den inställningen för att tillfälligt stoppa nya gäster vid missbruk. Befintliga sessioner påverkas inte av nyregistreringsgränsen.
+
+Utan en Turnstile-webbplatsnyckel tillåter gränssnittet inte nytt gästinträde. Säkerheten kräver ändå att CAPTCHA verkligen är aktiverad i Supabase, eftersom Auth API kan anropas direkt.
+
+Serverregler i 027:
+
+- Exakt 100 låsbara gästplatser i ett privat schema. Triggern på `auth.users` tilldelar en plats atomärt och avvisar även direkta Auth-anrop när det är fullt. Ett misslyckat försök rullar tillbaka hela skapandet. Befintliga gäster räknas in vid migrationen.
+- Gäster får inte skapa/äga grupper eller tilldelas admin-/ägarroll, inte heller genom automatisk ägaröverföring. Profilens `is_guest` bestäms av servern.
+- 5 gruppkodsförsök per minut och användare, inklusive felaktiga koder. RPC:n `request_group_membership` returnerar nu `{group_id}` eller `{error}`. Deploya frontend tillsammans med migrationen.
+- 20 meddelanden/minut (max 4 000 tecken), varav högst 10 platsnålar/minut. 30 positions-, närvaro- respektive svarsuppdateringar/minut. Profil/poll: 20/minut; pollalternativ: 100/minut. Gränserna gäller per användare, över alla grupper, även vanliga konton. De begränsar accepterade skrivningar, inte alla inkommande HTTP-anrop.
+- Rensning efter minst 24 timmars inaktivitet, även för gäster som aldrig skapade en profil eller gick med i en grupp. Synlig app skickar aktivitet varje minut, även utan vald grupp. Skrivningar i appen räknas också som aktivitet. Tidsstämplar för gästrensning sätts på servern.
+- Utloggning tar bort egen position/närvaro i alla grupper och avslutar sessionen. Användaren och medlemskapen finns kvar fram till rensningen. Gästens meddelanden, polls, svar och platsnålar behålls vid rensning med tom användarkoppling och visas som ”Tidigare gäst”. Vanliga kontons befintliga raderingsbeteende behålls.
+- Gamla gäster undantas från den separata tolvmånadersrensningen för vanliga konton.
+
+Omedelbar gästradering i 029: knappen **Radera min gästprofil** kräver uttrycklig bekräftelse och skickar `{confirmGuest: true}` till `delete-my-account`. Funktionen verifierar sessionen med Auth och använder endast den verifierade användarens ID. En anonym användare behöver ingen e-postbekräftelse. Den nya RPC:n `delete_guest_account` får endast anropas med `service_role`, kontrollerar att kontot är anonymt och bevarar bidragen samt raderar kontot i en transaktion. Profil, medlemskap, position/närvaro och interna räknare raderas genom databasens foreign keys; gästplatsen frigörs direkt. Vanliga konton behöver fortfarande bekräfta sin e-postadress och använder det tidigare raderingsflödet. Vanlig utloggning är oförändrad.
+
+Kontrollera schemat och körhistoriken i Supabase Cron. För SQL Editor:
+
+```sql
+select jobid, schedule, active from cron.job where jobname = 'faltchatt-cleanup-guests';
+select status, return_message, start_time from cron.job_run_details
+where jobid in (select jobid from cron.job where jobname = 'faltchatt-cleanup-guests')
+order by start_time desc limit 10;
+select count(*) as guests from auth.users where is_anonymous;
+```
+
+Följ Auth-felfrekvens, gästantal, databasbelastning och Realtime-användning i Dashboard. Robotskydd, skrivgränser och kontotak är inte ett generellt skydd mot all överbelastning.
+
+Dokumentation: [Supabase anonymous sign-ins](https://supabase.com/docs/guides/auth/auth-anonymous), [CAPTCHA](https://supabase.com/docs/guides/auth/auth-captcha), [rate limits](https://supabase.com/docs/guides/auth/rate-limits).
+
+### Testa gästläget
+
+Kör `npm test` för SQL/RLS/trigger-tester med lokal PGlite och `npm run build` för produktionsbygget. PGlite ersätter inte integrationstest av Supabase Auth, samtidiga databasanslutningar, Turnstile, Storage eller pg_cron.
+
+Verifiera följande i ett separat Supabase-testprojekt innan produktionsaktivering:
+
+- Gästfliken har en knapp, kräver inga kontouppgifter och skapar en anonym användare efter Turnstile. Utan giltig CAPTCHA-token ska även direkt `signInAnonymously` avvisas.
+- Vanlig inloggning, registrering och lösenordsåterställning fungerar med CAPTCHA aktiverad.
+- En väntande gäst ser inte chatt/karta. Godkännande öppnar dem. Profil, alias, symbol, färg och positionsreglage fungerar. Skapa grupp är gråat. Gästen går inte att välja som admin. **Radera min gästprofil** är tillgänglig och kräver bekräftelse utan e-post.
+- När 99 gäster finns: skicka flera parallella Auth-anrop med varsin giltig CAPTCHA-token. Högst ett får skapa en gäst; antalet ska aldrig överstiga 100. Vanliga konton och befintliga gäster fungerar när det är fullt.
+- Fel gruppkod fem gånger spärrar nästa försök under resten av minutperioden. Kontrollera med direkt RPC-anrop också.
+- Utloggning lämnar Auth-användaren kvar, rensar live-data och nästa gästinträde skapar en ny användare. Stängning/återöppning med giltig session återanvänder gästen.
+- Radera en gästprofil: Auth-användare, profil, medlemskap och live-data försvinner direkt medan chatt, platsnålar och polls ligger kvar. Avbryt bekräftelsen och kontrollera att inget raderas. Kontrollera också att ett vanligt konto fortfarande kräver rätt e-postadress.
+- I testprojektet: sätt en utvald gästs `private.guest_slots.last_seen` till äldre än 24 timmar och kör `select private.cleanup_guests();`. Profil/medlemskap försvinner medan chatt/platsnålar/polls finns kvar. Öppna sedan den gamla gästens webbläsare: den ska återgå till inloggningssidan. Verifiera också att schemat körs automatiskt.
 
 ## 4. Storage
 

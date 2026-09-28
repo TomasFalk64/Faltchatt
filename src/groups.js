@@ -1,5 +1,5 @@
 import { requireSupabase } from './supabase.js';
-import { appState, presenceForUser, setActiveGroupId } from './state.js';
+import { appState, isGuest, presenceForUser, setActiveGroupId } from './state.js';
 import { privacyContent } from './privacy.js';
 import { el, formatRelative, friendlyError, icon, logEvent, logPanel, renderIcons, renderLog, showToast, symbolNode } from './ui.js';
 
@@ -25,11 +25,11 @@ export function currentRole() {
 }
 
 export function canAdminGroup() {
-  return ['owner', 'admin'].includes(currentRole());
+  return !isGuest() && ['owner', 'admin'].includes(currentRole());
 }
 
 export function isGroupOwner() {
-  return currentRole() === 'owner';
+  return !isGuest() && currentRole() === 'owner';
 }
 
 export async function loadGroups() {
@@ -67,7 +67,7 @@ export async function loadMembers() {
   if (!appState.activeGroupId) return;
   const { data, error } = await requireSupabase()
     .from('group_members')
-    .select('*, profiles(id, alias, symbol, symbol_color)')
+    .select('*, profiles(id, alias, symbol, symbol_color, is_guest)')
     .eq('group_id', appState.activeGroupId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -336,9 +336,10 @@ function groupOptionText(membership) {
 }
 
 function createGroupForm(onChanged) {
-  const input = el('input', { placeholder: 'Gruppnamn' });
+  const input = el('input', { placeholder: 'Gruppnamn', disabled: isGuest() });
   const submit = async (event) => {
     event.preventDefault();
+    if (isGuest()) return;
     const groupName = input.value.trim();
     if (!groupName) return;
     try {
@@ -365,8 +366,9 @@ function createGroupForm(onChanged) {
     el('h3', { text: 'Skapa grupp' }),
     el('div', { className: 'compact-form-row' }, [
       input,
-      el('button', { className: 'primary', type: 'submit' }, [icon('plus', 'Skapa'), 'Skapa']),
+      el('button', { className: 'primary', type: 'submit', disabled: isGuest() }, [icon('plus', 'Skapa'), 'Skapa']),
     ]),
+    isGuest() ? el('p', { className: 'muted', text: 'Logga in för att skapa en grupp.' }) : null,
   ]);
 }
 
@@ -383,8 +385,9 @@ function joinGroupForm(onChanged) {
     event.preventDefault();
     if (!input.value.trim()) return;
     try {
-      const { error } = await requireSupabase().rpc('request_group_membership', { requested_join_code: input.value.trim() });
+      const { data, error } = await requireSupabase().rpc('request_group_membership', { requested_join_code: input.value.trim() });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       showToast('Medlemsförfrågan skickad.', 'success');
       input.value = '';
       await onChanged();
@@ -510,13 +513,13 @@ function presenceStatusReason(row, active) {
 }
 
 function memberRowMeta(member, activeText) {
-  const role = ['owner', 'admin'].includes(member.role) ? member.role : 'member';
+  const role = member.profiles?.is_guest ? 'gäst' : ['owner', 'admin'].includes(member.role) ? member.role : 'member';
   const status = member.status === 'approved' ? activeText : member.status;
   return [role, status].filter(Boolean).join(' · ');
 }
 
 function adminRoleControl(onChanged) {
-  const members = appState.members.filter((member) => member.status === 'approved' && member.role !== 'owner');
+  const members = appState.members.filter((member) => member.status === 'approved' && member.role !== 'owner' && !member.profiles?.is_guest);
   const memberSelect = el(
     'select',
     {},
@@ -619,7 +622,7 @@ function invitationHtml() {
     `Du har blivit inbjuden till <strong>${escapeHtml(groupName)}</strong> i Fältchatt.`,
     `Gruppkod: <strong>${escapeHtml(groupCode)}</strong>`,
     'Ange gruppkoden i Fältchatt för att ansluta till grupp.',
-    'Om du inte har ett konto behöver du först skapa ett.',
+    'Logga in med ett konto eller välj Gäst för att ansöka om att gå med.',
     `Öppna Fältchatt: <a href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(url)}</a>`,
   ].join('<br>');
 }

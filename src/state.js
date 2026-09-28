@@ -29,6 +29,7 @@ export const ACTIVE_PRESENCE_MS = 45 * 1000;
 export const appState = {
   session: null,
   user: null,
+  signingOut: false,
   profile: null,
   locationSharingEnabled: localStorage.getItem('faltchatt.locationSharingEnabled') === 'true',
   activeGroupId: localStorage.getItem('faltchatt.activeGroupId') || null,
@@ -52,6 +53,10 @@ export const appState = {
 export function setLocationSharingEnabled(enabled) {
   appState.locationSharingEnabled = enabled;
   localStorage.setItem('faltchatt.locationSharingEnabled', String(enabled));
+}
+
+export function isGuest() {
+  return appState.user?.is_anonymous === true;
 }
 
 export function getSymbol(symbolId) {
