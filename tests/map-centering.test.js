@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { createTimedCache } from '../src/timed-cache.js';
 
 const source = (await readFile('src/map.js', 'utf8'))
   .replace(/^import .*;\r?\n/gm, '')
@@ -24,7 +25,7 @@ function fixture() {
       position: () => lastOwnPosition,
       pan() { userAdjustedMapView = true; }
     });`, {
-    appState, console,
+    appState, console, createTimedCache,
     window: { addEventListener() {}, setTimeout() {} },
     navigator: { geolocation: {
       watchPosition() { watches++; return 0; },

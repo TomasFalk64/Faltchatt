@@ -30,18 +30,18 @@ export async function uploadGroupGeoTiff(file) {
   return path;
 }
 
-export async function listGroupGeoTiffs() {
-  if (!appState.activeGroupId) return [];
+export async function listGroupGeoTiffs(groupId = appState.activeGroupId) {
+  if (!groupId) return [];
   const { data, error } = await requireSupabase()
     .storage
     .from('group-maps')
-    .list(appState.activeGroupId, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+    .list(groupId, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
   if (error) throw error;
   return (data || [])
     .filter((item) => /\.(tif|tiff)$/i.test(item.name))
     .map((item) => ({
       name: item.name,
-      path: `${appState.activeGroupId}/${item.name}`,
+      path: `${groupId}/${item.name}`,
       size: item.metadata?.size || 0,
       createdAt: item.created_at,
     }));

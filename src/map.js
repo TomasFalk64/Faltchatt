@@ -5,6 +5,7 @@ import { canAdminGroup, isApprovedMember } from './groups.js';
 import { refreshChatMessages, sendMessage } from './chat.js';
 import { deleteGroupGeoTiff, listGroupGeoTiffs, loadGeoTiffLayers, removeGeoTiffLayers, setGeoTiffOpacity, uploadGroupGeoTiff } from './geotiff.js';
 import { requireSupabase } from './supabase.js';
+import { createTimedCache } from './timed-cache.js';
 import { el, formatRelative, friendlyError, icon, logEvent, memberColor, memberName, memberSymbolId, renderIcons, setView, showToast, symbolMarkup } from './ui.js';
 
 let map;
@@ -26,6 +27,10 @@ let geotiffOpacity = 0.8;
 const hiddenSentLocationIds = new Set();
 let groupGeoTiffs = [];
 let groupGeoTiffsLoadedFor = null;
+const groupGeoTiffCache = createTimedCache(60000);
+let groupGeoTiffRequest = null;
+let mapControlsChanged = async () => {};
+const renderedMapLists = new WeakMap();
 let hiddenGeoTiffPaths = new Set();
 let hiddenSentLocationsLoadedFor = null;
 let lastAutoFitGroupId = null;
@@ -121,6 +126,7 @@ export async function renderMapView(onChanged) {
 }
 
 export function renderMapControls(onChanged) {
+  mapControlsChanged = onChanged;
   const view = document.querySelector('#admin-map-controls-region');
   if (!view) return;
   view.innerHTML = '';
@@ -142,6 +148,7 @@ export function renderMapControls(onChanged) {
     if (!file) return;
     try {
       await uploadGroupGeoTiff(file);
+      groupGeoTiffCache.invalidate();
       groupGeoTiffsLoadedFor = null;
       showToast('Gruppkartan laddades upp.', 'success');
       await onChanged();
@@ -222,6 +229,7 @@ export async function refreshMapLayers() {
   loadHiddenSentLocations();
   sentLocationsLayer.clearLayers();
   if (!appState.activeGroup || !isApprovedMember()) {
+    await refreshGroupGeoTiffList();
     clearMemberMarkers();
     removeGeoTiffLayers(map);
     focusRequestedLocation();
@@ -231,6 +239,7 @@ export async function refreshMapLayers() {
   renderMemberLocationMarkers();
   renderSentLocationMarkers();
   await refreshGroupGeoTiffList();
+  await renderGroupMapList(mapControlsChanged);
   await loadGeoTiffLayers(map, visibleGeoTiffPaths(), geotiffOpacity, { fitBounds: shouldFitGroupMap() });
   lastAutoFitGroupId = appState.activeGroupId || null;
   focusRequestedLocation();
@@ -241,16 +250,19 @@ async function renderGroupMapList(onChanged) {
   const container = document.querySelector('#group-map-list');
   if (!container) return;
   try {
-    await refreshGroupGeoTiffList(true);
+    await refreshGroupGeoTiffList();
+    if (renderedMapLists.get(container) === groupGeoTiffs) return;
     container.replaceChildren(
       groupGeoTiffs.length
         ? el('div', { className: 'map-file-items' }, groupGeoTiffs.map((mapFile) => mapFileRow(mapFile, onChanged)))
         : el('p', { className: 'muted', text: 'Inga GeoTIFF-kartor uppladdade ännu.' }),
     );
+    renderedMapLists.set(container, groupGeoTiffs);
     updateGeoTiffOpacityControl();
     renderIcons();
   } catch (error) {
     console.error(error);
+    renderedMapLists.delete(container);
     container.replaceChildren(el('p', { className: 'warning-text', text: friendlyError(error, 'Kunde inte läsa kartlistan.') }));
     updateGeoTiffOpacityControl();
   }
@@ -309,16 +321,24 @@ async function refreshGroupGeoTiffList(force = false) {
   if (!appState.activeGroupId || !isApprovedMember()) {
     groupGeoTiffs = [];
     groupGeoTiffsLoadedFor = null;
+    groupGeoTiffRequest = null;
+    groupGeoTiffCache.invalidate();
     hiddenGeoTiffPaths = new Set();
     return;
   }
-  if (groupGeoTiffsLoadedFor !== appState.activeGroupId) {
+  const groupId = appState.activeGroupId;
+  const context = `${appState.user?.id}:${groupId}`;
+  if (groupGeoTiffsLoadedFor !== context) {
     hiddenGeoTiffPaths = loadHiddenGeoTiffs();
-    groupGeoTiffsLoadedFor = appState.activeGroupId;
-    force = true;
+    groupGeoTiffs = [];
+    groupGeoTiffsLoadedFor = context;
   }
-  if (!force && groupGeoTiffs.length) return;
-  groupGeoTiffs = await listGroupGeoTiffs();
+  const request = groupGeoTiffCache.get(context, () => listGroupGeoTiffs(groupId), force);
+  groupGeoTiffRequest = request;
+  const files = await request;
+  // Ignore a response from an old group, session or invalidated request.
+  if (groupGeoTiffRequest !== request || `${appState.user?.id}:${appState.activeGroupId}` !== context || !isApprovedMember()) return;
+  groupGeoTiffs = files;
 }
 
 function visibleGeoTiffPaths() {
