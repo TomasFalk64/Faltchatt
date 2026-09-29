@@ -2,6 +2,8 @@
 
 Fältchatt är en webb-MVP för gruppbaserad fältkommunikation. Appen använder Supabase för inloggning, grupper, godkända medlemskap, chatt, polls, positioner, Realtime och privat lagring av GeoTIFF-kartor.
 
+Appens nya publika adress är `https://kartprat.se/`. Vite bygger för domänens rot (`base: '/'`). Publiceringen av rotbygget behöver samordnas med domänbytet i GitHub Pages; dessa externa inställningar ändras inte av bygget.
+
 ## Funktioner
 
 - Konto med e-post/lösenord, e-postbekräftelse och lösenordsåterställning.
@@ -54,6 +56,8 @@ Starta appen:
 npm run dev
 ```
 
+Öppna `http://127.0.0.1:5173/` (eller den port som Vite visar). Appen använder inte längre undermappen `/Faltchatt/` lokalt.
+
 På Windows/PowerShell kan `npm.ps1` ibland blockeras av execution policy. Då fungerar ofta:
 
 ```powershell
@@ -67,7 +71,7 @@ Appen kräver migrationerna i `supabase/migrations/` i nummerordning. De skapar 
 Viktigt för auth:
 
 - Använd bara Supabase anon/publishable key i frontend.
-- Lägg till lokal redirect URL, exempelvis `http://127.0.0.1:5173`, i Supabase Auth settings.
+- Lägg till `https://kartprat.se/` och lokal redirect URL `http://127.0.0.1:5173/` i Supabase Auth settings. Byt Site URL till `https://kartprat.se/` när den nya domänen fungerar. Behåll gamla redirect-adresser under övergången.
 - Supabase standardmail har låg rate limit. För rimlig testning behövs ofta custom SMTP, till exempel Brevo eller Resend.
 - Lösenordsåterställning loggar in användaren i recovery-läge; appen visar då formulär för nytt lösenord i Profil.
 - Fältchatts vanliga tabeller ska inte lagra e-postadresser eller mobilnummer. Max 30 personer per grupp och max 30 pågående grupper totalt.

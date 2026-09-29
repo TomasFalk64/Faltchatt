@@ -56,14 +56,15 @@ I Dashboard, gå till Authentication:
 
 - Aktivera Email provider.
 - Välj om e-postbekräftelse ska krävas.
-- Lägg in redirect URLs för både lokal test och publicerad app, exempelvis `http://127.0.0.1:5173/Faltchatt/` och `https://tomasfalk64.github.io/Faltchatt/`.
+- Lägg in redirect URLs för både lokal test och publicerad app: `http://127.0.0.1:5173/` och `https://kartprat.se/`. Lägg även till `http://localhost:5173/` om det värdnamnet används lokalt.
+- Byt Site URL till `https://kartprat.se/` när den nya domänen fungerar. Behåll tidigare redirect-adresser under övergången och kontrollera att egna e-postmallar inte innehåller gamla hårdkodade länkar.
 
 ### Gästläge och robotskydd
 
 Gör inställningarna nedan innan gästinloggning aktiveras i produktion:
 
 1. Kör migrationerna 027–029 som `postgres` (SQL Editor eller CLI). Om 027 och 028 redan är körda, kör bara 029. 028 aktiverar `pg_cron` och schemalägger rensning varje hel timme. 027 stoppar om befintliga gäster redan överskrider 100 eller har admin-/ägarroller; granska dessa manuellt först. 029 möjliggör omedelbar gästradering. Deploya därefter den uppdaterade `delete-my-account`-funktionen och frontend.
-2. Skapa en **Managed** Cloudflare Turnstile-widget med appens värdnamn tillåtna. Lägg den offentliga webbplatsnyckeln i `VITE_TURNSTILE_SITE_KEY` i `.env.local` och i GitHub Actions repository variables. Bygg om appen efter ändringen.
+2. Skapa en **Managed** Cloudflare Turnstile-widget med appens värdnamn tillåtna, inklusive `kartprat.se`. Behåll tidigare värdnamn under domänbytet. Lägg den offentliga webbplatsnyckeln i `VITE_TURNSTILE_SITE_KEY` i `.env.local` och i GitHub Actions repository variables. Bygg om appen efter ändring av nyckeln.
 3. Under Supabase Authentication → Bot and Abuse Protection, aktivera CAPTCHA och välj Turnstile. Lägg **hemliga** Turnstile-nyckeln endast där, aldrig i Vite eller GitHub Pages. CAPTCHA verifieras av Supabase Auth, inte bara av gränssnittet. Inställningen omfattar även vanlig registrering, lösenordsinloggning och återställning; appen skickar därför CAPTCHA-token i samtliga dessa flöden.
 4. Behåll gränsen **30 anonyma inloggningar per timme och IP** i Supabase Auth rate limits. Detta är en Dashboard-inställning, inte något SQL-migrationen kan konfigurera.
 5. Aktivera **Allow anonymous sign-ins** sist. Stäng av den inställningen för att tillfälligt stoppa nya gäster vid missbruk. Befintliga sessioner påverkas inte av nyregistreringsgränsen.
@@ -162,7 +163,7 @@ supabase functions deploy cleanup-expired-groups
 supabase secrets set BREVO_API_KEY=din_brevo_api_key
 supabase secrets set BREVO_SENDER_EMAIL=avsandare@example.com
 supabase secrets set BREVO_SENDER_NAME=Fältchatt
-supabase secrets set FALTCHATT_APP_URL=https://tomasfalk64.github.io/Faltchatt/
+supabase secrets set FALTCHATT_APP_URL=https://kartprat.se/
 supabase secrets set INACTIVE_ACCOUNT_CLEANUP_SECRET=valfri_hemlig_strang
 supabase secrets set EXPIRED_GROUP_CLEANUP_SECRET=valfri_hemlig_strang
 ```
