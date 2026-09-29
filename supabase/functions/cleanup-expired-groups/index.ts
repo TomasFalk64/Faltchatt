@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0';
+import { removeGroupMapFiles } from '../_shared/map-cleanup.js';
 
 type GroupRow = {
   id: string;
@@ -39,36 +40,26 @@ Deno.serve(async (req) => {
       result.groups += 1;
     }
 
+    // Includes groups removed manually or during account deletion. A failed
+    // Storage API call leaves the queue item in place for the next scheduled run.
+    while (true) {
+      const { data: queued, error: queueError } = await supabase.from('map_storage_cleanup')
+        .select('group_id').order('created_at').limit(100);
+      if (queueError) throw queueError;
+      if (!queued?.length) break;
+      for (const item of queued) {
+        result.storageObjects += await removeGroupMapFiles(supabase, item.group_id);
+        const { error } = await supabase.from('map_storage_cleanup').delete().eq('group_id', item.group_id);
+        if (error) throw error;
+      }
+    }
+
     return json(result);
   } catch (error) {
     console.error(error);
     return json({ error: error instanceof Error ? error.message : 'unknown error' }, 400);
   }
 });
-
-async function removeGroupMapFiles(supabase: any, groupId: string) {
-  const paths: string[] = [];
-  let offset = 0;
-  const limit = 1000;
-
-  while (true) {
-    const { data, error } = await supabase.storage
-      .from('group-maps')
-      .list(groupId, { limit, offset });
-    if (error) throw error;
-    if (!data?.length) break;
-    for (const item of data) {
-      if (item.name) paths.push(`${groupId}/${item.name}`);
-    }
-    if (data.length < limit) break;
-    offset += limit;
-  }
-
-  if (!paths.length) return 0;
-  const { error } = await supabase.storage.from('group-maps').remove(paths);
-  if (error) throw error;
-  return paths.length;
-}
 
 function requiredEnv(name: string) {
   const value = Deno.env.get(name);

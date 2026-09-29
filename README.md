@@ -101,9 +101,13 @@ supabase/migrations/
 - Webbläsare kan strypa GPS och timers när fliken är i bakgrunden eller enheten sparar ström.
 - Andra medlemmars position kan inte tvingas fram från din webbläsare; appen kan bara läsa deras senast sparade position.
 - Ljudnotiser kräver att användaren först interagerat med sidan, enligt webbläsarens ljudregler.
-- GeoTIFF-stöd beror på filens georeferering och projektion.
-- Storage-migrationen har låg filstorleksgräns för GeoTIFF, ungefär 5 MB.
+- Nya GeoTIFF-kartor omvandlas till privata PNG-tiles i en Web Worker vid uppladdning. Äldre TIFF-kartor visas fortfarande med GeoRasterLayer.
+- Kartimport: högst 2000 pixlar per sida och 5 MiB. Georeferering med känt EPSG krävs; färg, palett och gråskala stöds (heltal, högst 16 bitar/kanal och fyra kanaler).
+- Importen skapar normalt fyra sammanhängande zoomnivåer med 256 × 256 px tiles. Högsta nivån beräknas från bildens pixelmått och georeferering, inte uppskattad detaljskärpa. Högst 512 tiles och begränsad arbetsyta skyddar mot alltför stora importer.
+- Tile-import kräver en webbläsare med module Workers och OffscreenCanvas. Låt sidan vara öppen tills uppladdningen är klar. Ingen separat server för bildbearbetning behövs.
 - Ingen offline-synk, push-notiser eller native-app ingår ännu.
 - Produktionsbuilden är stor eftersom GeoTIFF-biblioteken drar in många moduler.
+
+För tile-import måste migration `030_map_tiles.sql` köras och Edge Function `cleanup-expired-groups` publiceras på nytt innan den nya webbversionen tas i bruk. Se `SUPABASE_SETUP.md` för driftsättning och visuella kontroller.
 
 

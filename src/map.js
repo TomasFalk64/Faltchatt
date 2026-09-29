@@ -23,7 +23,8 @@ let lastOwnPosition = null;
 let lastPositionLogAt = 0;
 let lastGpsSkipLogAt = 0;
 let lastPresenceHeartbeatLogAt = 0;
-let geotiffOpacity = 0.8;
+let geotiffOpacity = 1;
+let mapImportProgress = null;
 const hiddenSentLocationIds = new Set();
 let groupGeoTiffs = [];
 let groupGeoTiffsLoadedFor = null;
@@ -135,6 +136,7 @@ export function renderMapControls(onChanged) {
   const opacityControl = el('label', { id: 'geotiff-opacity-control', hidden: true }, ['Visa uppladdad karta', opacity]);
   const upload = el('input', { type: 'file', accept: '.tif,.tiff,image/tiff', className: 'visually-hidden-file' });
   const uploadButton = el('button', {
+    id: 'map-upload-button',
     type: 'button',
     className: 'secondary',
     onClick: () => upload.click(),
@@ -145,9 +147,10 @@ export function renderMapControls(onChanged) {
   });
   upload.addEventListener('change', async () => {
     const file = upload.files?.[0];
-    if (!file) return;
+    if (!file || mapImportProgress) return;
+    updateMapImportProgress({ value: 0, text: 'Kontrollerar kartan…' });
     try {
-      await uploadGroupGeoTiff(file);
+      await uploadGroupGeoTiff(file, updateMapImportProgress);
       groupGeoTiffCache.invalidate();
       groupGeoTiffsLoadedFor = null;
       showToast('Gruppkartan laddades upp.', 'success');
@@ -155,6 +158,9 @@ export function renderMapControls(onChanged) {
     } catch (error) {
       console.error(error);
       showToast(friendlyError(error, 'Kunde inte ladda upp GeoTIFF.'), 'error');
+    } finally {
+      upload.value = '';
+      updateMapImportProgress(null);
     }
   });
 
@@ -166,10 +172,29 @@ export function renderMapControls(onChanged) {
     el('p', { className: 'muted', text: hasApprovedGroup ? 'OpenStreetMap visas alltid. Gruppkartor visas om de laddas upp.' : 'OpenStreetMap visas även utan grupp. Gruppkarta och platsmeddelanden kräver godkänd grupp.' }),
     opacityControl,
     canAdminGroup() ? el('div', { className: 'upload-control' }, [upload, uploadButton]) : null,
+    canAdminGroup() ? el('p', { className: 'muted', text: 'GeoTIFF: högst 2000 × 2000 pixlar och 5 MiB. Håll sidan öppen medan kartan förbereds och laddas upp.' }) : null,
+    el('div', { id: 'map-upload-status', hidden: true, role: 'status', 'aria-live': 'polite' }, [
+      el('p', { id: 'map-upload-status-text' }),
+      el('progress', { id: 'map-upload-progress', max: '100', value: '0', 'aria-label': 'Kartuppladdning' }),
+    ]),
     mapList,
   );
+  updateMapImportProgress(mapImportProgress);
   renderIcons();
   if (hasApprovedGroup) renderGroupMapList(onChanged);
+}
+
+function updateMapImportProgress(progress) {
+  mapImportProgress = progress;
+  const status = document.querySelector('#map-upload-status');
+  const button = document.querySelector('#map-upload-button');
+  if (button) button.disabled = Boolean(progress);
+  if (!status) return;
+  status.hidden = !progress;
+  if (progress) {
+    status.querySelector('#map-upload-status-text').textContent = progress.text;
+    status.querySelector('#map-upload-progress').value = progress.value;
+  }
 }
 
 function initMap() {

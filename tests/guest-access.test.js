@@ -33,6 +33,9 @@ before(async () => {
     create role authenticated;
     create role service_role bypassrls;
     create schema auth;
+    create schema storage;
+    create table storage.buckets (id text primary key, file_size_limit bigint, allowed_mime_types text[]);
+    insert into storage.buckets (id) values ('group-maps');
     create publication supabase_realtime;
     create table auth.users (
       id uuid primary key, is_anonymous boolean not null default false,
@@ -58,6 +61,7 @@ before(async () => {
   await db.exec(`
     grant select, insert, update, delete on all tables in schema public to authenticated;
     revoke insert, update, delete on public.account_activity from authenticated;
+    revoke all on public.map_storage_cleanup from authenticated;
   `);
   await addUser(owner, false);
   await addUser(guest, true);
@@ -66,6 +70,17 @@ before(async () => {
 });
 
 after(async () => { await db?.close(); });
+
+test('tile storage allows PNG/JSON and deleted groups queue private storage cleanup', async () => {
+  const bucket = (await db.query("select * from storage.buckets where id = 'group-maps'")).rows[0];
+  assert.equal(Number(bucket.file_size_limit), 5242880);
+  assert.ok(bucket.allowed_mime_types.includes('image/png'));
+  assert.ok(bucket.allowed_mime_types.includes('application/json'));
+  const id = (await asUser(owner, "select public.create_group_with_owner('Karttest') as id")).rows[0].id;
+  await asUser(owner, 'select public.delete_group($1)', [id]);
+  assert.equal((await db.query('select group_id from public.map_storage_cleanup where group_id = $1', [id])).rows.length, 1);
+  await assert.rejects(asUser(owner, 'select * from public.map_storage_cleanup'), /permission denied/);
+});
 
 test('guest flag is authoritative, and a guest cannot create a group', async () => {
   await asUser(guest, 'update public.profiles set is_guest = false where id = $1', [guest]);

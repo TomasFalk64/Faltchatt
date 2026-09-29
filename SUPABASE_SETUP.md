@@ -113,12 +113,14 @@ Verifiera följande i ett separat Supabase-testprojekt innan produktionsaktiveri
 
 ## 4. Storage
 
-Migrationen skapar bucket `group-maps` som privat bucket med ungefär 5 MB filgräns.
+Migrationen skapar bucket `group-maps` som privat bucket med 5 MiB filgräns. Migration `030_map_tiles.sql` tillåter även PNG och JSON för förberedda kartor. Befintliga behörigheter gäller även filer i underkataloger.
 
 Filvägarna följer:
 
 ```text
 group-maps/{group_id}/{uuid}.tif
+group-maps/{group_id}/{map_id}.tiles.json
+group-maps/{group_id}/{map_id}/{z}-{x}-{y}.png
 ```
 
 Policies tillåter:
@@ -184,4 +186,28 @@ Grundprinciperna:
 
 ## 8. GeoTIFF
 
-Första versionen förutsätter att GeoTIFF-filen är korrekt georefererad och kan tolkas av browserbiblioteken. Om filen saknar användbar georeferering eller har en projektion biblioteket inte stödjer visas ett kort felmeddelande och appen fortsätter fungera.
+Nya kartor kontrolleras och omvandlas i webbläsaren före uppladdning. Gränserna är 5 MiB, 2000 pixlar per sida och 512 genererade tiles. Bilden måste ha georeferering och ett känt EPSG-koordinatsystem. Standardiserad TIFF-orientering, roterade affina kartor samt PixelIsArea/PixelIsPoint stöds. Kartor som saknar användbar georeferering nekas med ett felmeddelande.
+
+En module Worker avkodar bilden, omprojicerar den till EPSG:3857 med bilinjär omsampling och skapar 256 × 256 px PNG-rutor. Lägre zoomnivåer skapas genom successiv nedskalning. Högsta nivån matchar minst originalets pixelupplösning; normalt används den och tre lägre nivåer. Arbetsytan begränsas till 8192 pixlar per sida och 24 × 1024 × 1024 pixlar totalt. Bildens verkliga detaljskärpa kan inte avläsas ur pixelmåtten och används inte som urvalskriterium.
+
+PNG-filerna laddas upp med högst fyra samtidiga anrop. Manifestet publiceras sist, så ofullständiga kartor inte visas i listan. Vid fel försöker klienten ta bort påbörjade filer; om fliken stängs eller nätverket försvinner kan rester ligga kvar tills gruppens lagring städas. Original-TIFF sparas inte för nya importer. Gamla `.tif`/`.tiff`-filer visas oförändrat med den äldre renderaren; ladda upp dem igen för att få tile-visning och radera sedan den gamla kartposten.
+
+Tile-lagret hämtar bilder med tidsbegränsade signerade URL:er från den privata bucketen. Signeringen delas mellan rutorna och förnyas vid nya tile-förfrågningar efter 50 minuter. Leaflet förstorar högsta nivån vid fortsatt inzoomning. Standardopaciteten är 100 %, med reglaget kvar.
+
+### Driftsättning av tile-import
+
+1. Kör `030_map_tiles.sql` i Supabase. Den uppdaterar tillåtna filtyper och skapar en skyddad städkö för borttagna grupper.
+2. Publicera om `cleanup-expired-groups` (inklusive `functions/_shared/map-cleanup.js`). Den raderar nu underkataloger, gamla TIFF-filer och rester av avbrutna uppladdningar. Manuellt borttagna grupper och grupper borttagna via kontoradering städas vid nästa körning via kön. Befintliga redan borttagna grupper återfylls inte automatiskt i kön.
+3. Bygg och publicera webbsidan med hela `dist`, inklusive worker-filer och dess avkodningsmoduler.
+
+### Verifiering
+
+`npm test` kontrollerar gränser, projektion/utbredning, TIFF-till-PNG-rendering, detaljer över rutgränser, alfa/nodata, uppladdningsfel, paginering, rekursiv radering och städköns databasbehörigheter. PNG-renderingstester använder en canvas-adapter i Node; de ersätter inte provning på riktiga telefoner.
+
+Efter driftsättning, prova på dator och mobil:
+
+- Ladda upp en georefererad karta på ungefär 1000 × 1000 px och 1 × 1 km. Kontrollera förlopp, bibehållen respons och korrekt placering mot bakgrundskartan.
+- Jämför text och tunna linjer med originalet vid 100 % opacitet. Panorera över rutgränser och zooma genom samtliga nivåer samt över högsta genererade nivån.
+- Testa en äldre TIFF-karta tillsammans med en ny tile-karta; visa/dölj, ändra opacitet och byt grupp.
+- Kontrollera att >2000 px eller >5 MiB nekas innan något laddas upp. Avbryt nätverket under uppladdning och kontrollera att ingen halvfärdig kartpost publiceras.
+- Radera en tile-karta och kontrollera att både manifest och PNG-filer försvinner. Radera därefter en testgrupp och kör cleanup-jobbet; dess lagring och köpost ska försvinna.
